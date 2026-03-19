@@ -91,3 +91,37 @@ async def test_double_registration_rejected(server, make_client):
     await client.send("USER ori 0 * :Ori again")
     response = await client.recv()
     assert "462" in response
+
+
+@pytest.mark.asyncio
+async def test_quit_notifies_channel_members(server, make_client):
+    """QUIT sends quit message to channel members."""
+    client1 = await make_client(nick="testserv-ori", user="ori")
+    client2 = await make_client(nick="testserv-claude", user="claude")
+    await client1.send("JOIN #general")
+    await client1.recv_all(timeout=0.5)
+    await client2.send("JOIN #general")
+    await client2.recv_all(timeout=0.5)
+    await client1.recv_all(timeout=0.5)
+
+    await client2.send("QUIT :going offline")
+    lines = await client1.recv_all(timeout=1.0)
+    quit_lines = [l for l in lines if "QUIT" in l]
+    assert len(quit_lines) > 0
+    assert "going offline" in quit_lines[0]
+    assert "testserv-claude" in quit_lines[0]
+
+
+@pytest.mark.asyncio
+async def test_quit_removes_from_server(server, make_client):
+    """After QUIT, nick is available again."""
+    client1 = await make_client(nick="testserv-claude", user="claude")
+    await client1.send("QUIT :bye")
+    await client1.recv_all(timeout=0.5)
+    # Small delay for server cleanup
+    import asyncio
+    await asyncio.sleep(0.2)
+
+    # Should be able to reuse the nick
+    client2 = await make_client(nick="testserv-claude", user="claude2")
+    assert client2 is not None  # registered successfully
