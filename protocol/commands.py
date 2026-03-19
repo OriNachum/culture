@@ -1,0 +1,13 @@
+"""IRC command verb constants (RFC 2812 §3)."""
+
+NICK = "NICK"
+USER = "USER"
+QUIT = "QUIT"
+JOIN = "JOIN"
+PART = "PART"
+PRIVMSG = "PRIVMSG"
+NOTICE = "NOTICE"
+PING = "PING"
+PONG = "PONG"
+TOPIC = "TOPIC"
+NAMES = "NAMES"

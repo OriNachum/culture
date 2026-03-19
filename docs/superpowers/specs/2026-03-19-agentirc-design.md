@@ -170,6 +170,123 @@ Agent mid-task needs input
   → Returns the answer to the agent
 ```
 
+## Agent Control & Spiraling
+
+### The Spiraling Problem
+
+AI agents can spiral — burning tokens, retrying failed approaches endlessly, making destructive changes, or going down rabbit holes that diverge from the original task. In a mesh of agents, this compounds: one spiraling agent can trigger others, creating cascading waste.
+
+The harness must treat this as a first-class concern, not an afterthought.
+
+### Supervisor Sub-Agent
+
+Each agent gets a lightweight supervisor — a separate sub-agent that runs alongside the main agent. The supervisor reads the main agent's conversation stream in real-time and acts as a guardrail through observation, not interception.
+
+**What it watches for:**
+
+- **Spiraling** — repeated failures, same approach retried, token burn with no progress
+- **Topic drift** — conversation diverging from the original task
+- **Stalling** — agent stuck, not converging toward a conclusion
+- **Tone/quality** — responses degrading, hallucinations increasing
+
+**How it intervenes — whispering:**
+
+The supervisor doesn't kill the agent or block actions. It *whispers* — injects a message into the agent's context that only the agent sees, not posted to IRC.
+
+```text
+Task: "benchmark nemotron on llama 70B"
+
+Agent is on attempt #4 of the same failing cmake build...
+
+Supervisor whispers:
+  [SUPERVISOR] You've tried the same cmake flags 4 times. Consider:
+  asking in #llama-cpp what flags worked on this hardware, or
+  trying a different build approach.
+
+Agent reads the whisper as part of its context and adjusts.
+```
+
+**Escalation:**
+
+If the agent ignores repeated whispers and continues spiraling, the supervisor escalates — posts to IRC that the agent may be stuck, fires the webhook, and optionally pauses the agent.
+
+```text
+Whisper 1: "You're retrying the same approach"
+Whisper 2: "Still no progress — consider asking for help"
+Whisper 3: → Escalate to IRC + webhook, pause agent
+```
+
+**Why a sub-agent, not heuristics:**
+
+Heuristics (idle timers, pattern matching, token counters) are either too aggressive or too lenient. A language model can actually understand whether the agent is making progress, whether the conversation is on-topic, and whether the current approach is productive. It reads the *meaning*, not just the patterns.
+
+**Resource cost:**
+
+The supervisor runs a capable model with sufficient reasoning budget. This isn't the place to cut corners — a supervisor that misreads the situation is worse than no supervisor. It reads a rolling window of the main agent's recent context, not the full history.
+
+**One supervisor per agent.** Each daemon-spawned session gets its own supervisor instance. Supervisors don't coordinate with each other — they only watch their own agent.
+
+### Handling Agent Questions
+
+When a Claude Code agent hits a decision point — permission prompt, ambiguous instruction, a choice that needs human judgment — the harness posts it to IRC for collaborative resolution.
+
+**Flow:**
+
+```text
+Agent hits: "This will delete 47 files. Proceed? [y/N]"
+
+1. Harness fires webhook (Discord, Slack, etc.) to notify humans
+2. Harness posts to #general (or the task's channel):
+     <spark-claude> [QUESTION] Task "cleanup stale branches" needs input:
+     <spark-claude> "This will delete 47 files. Proceed? [y/N]"
+     <spark-claude> Waiting for response. Reply with: @spark-claude yes/no/abort
+
+3. Other agents can query the waiting agent for more context:
+     <thor-claude> @spark-claude which files? Are any of them in active branches?
+     <spark-claude> [ANSWER] 12 are in merged branches, 35 are temp build artifacts.
+
+4. Discussion and resolution:
+     <thor-claude> @spark-claude looks safe, yes
+     <spark-ori> @spark-claude yes, go ahead
+
+5. Harness feeds the authorized response back to the blocked agent.
+```
+
+**Webhook notifications:**
+
+The harness fires a configurable webhook whenever a question is posted or a discussion starts. This ensures humans know an agent is blocked and waiting — even if they're not watching IRC.
+
+```text
+webhooks:
+  on_question: "https://discord.com/api/webhooks/..."
+  on_spiraling: "https://discord.com/api/webhooks/..."
+  on_timeout: "https://discord.com/api/webhooks/..."
+```
+
+**Agent-to-agent interrogation:**
+
+Agents can query the waiting agent before answering. The harness routes `@mention` messages to the blocked agent's context, and the agent responds with `[ANSWER]` tagged messages. This lets the mesh gather missing information before making a decision — no blind yes/no.
+
+**Who can answer:**
+
+- Ori (or any human with +o) — always authoritative, overrides any agent opinion
+- Other agents — can weigh in, but the harness respects a configurable trust hierarchy
+- If no response within timeout — task is paused, not auto-approved
+
+**Trust hierarchy (configurable):**
+
+```text
+trust:
+  humans: always
+  agents: vote    # or "first", "consensus", "never"
+  timeout: 30m
+  timeout_action: pause  # or "deny", "abort"
+```
+
+### Why This Matters
+
+Without this, an agent mesh is a liability. One confused agent auto-approving its own destructive actions, or three agents all independently deciding to "fix" the same file, turns collaboration into chaos. The harness is the circuit breaker.
+
 ## Use Cases
 
 ### Parallel Exploration
