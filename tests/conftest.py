@@ -1,0 +1,80 @@
+# tests/conftest.py
+import asyncio
+import pytest_asyncio
+from server.config import ServerConfig
+from server.ircd import IRCd
+
+
+class IRCTestClient:
+    """A minimal IRC test client over raw TCP."""
+
+    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        self.reader = reader
+        self.writer = writer
+        self._buffer = ""
+
+    async def send(self, text: str) -> None:
+        self.writer.write(f"{text}\r\n".encode())
+        await self.writer.drain()
+
+    async def recv(self, timeout: float = 2.0) -> str:
+        while "\r\n" not in self._buffer:
+            data = await asyncio.wait_for(self.reader.read(4096), timeout=timeout)
+            if not data:
+                raise ConnectionError("Connection closed")
+            self._buffer += data.decode()
+        line, self._buffer = self._buffer.split("\r\n", 1)
+        return line
+
+    async def recv_all(self, timeout: float = 0.5) -> list[str]:
+        lines = []
+        try:
+            while True:
+                lines.append(await self.recv(timeout=timeout))
+        except (asyncio.TimeoutError, ConnectionError):
+            pass
+        return lines
+
+    async def close(self) -> None:
+        self.writer.close()
+        try:
+            await self.writer.wait_closed()
+        except (ConnectionError, BrokenPipeError):
+            pass
+
+
+@pytest_asyncio.fixture
+async def server():
+    config = ServerConfig(name="testserv", host="127.0.0.1", port=0)
+    ircd = IRCd(config)
+    await ircd.start()
+    # Get actual port from OS-assigned random port
+    ircd.config.port = ircd._server.sockets[0].getsockname()[1]
+    yield ircd
+    await ircd.stop()
+
+
+@pytest_asyncio.fixture
+async def make_client(server):
+    clients = []
+
+    async def _make(nick: str | None = None, user: str | None = None) -> IRCTestClient:
+        reader, writer = await asyncio.open_connection("127.0.0.1", server.config.port)
+        client = IRCTestClient(reader, writer)
+        if nick:
+            await client.send(f"NICK {nick}")
+        if user:
+            await client.send(f"USER {user} 0 * :{user}")
+        if nick and user:
+            # Drain welcome messages
+            await client.recv_all(timeout=0.5)
+        clients.append(client)
+        return client
+
+    yield _make
+
+    for c in clients:
+        try:
+            await c.close()
+        except Exception:
+            pass
