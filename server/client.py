@@ -54,8 +54,17 @@ class Client:
         )
         await self.send(msg)
 
-    async def handle(self) -> None:
+    async def handle(self, initial_msg: str | None = None) -> None:
         buffer = ""
+        if initial_msg:
+            buffer = initial_msg
+            buffer = buffer.replace("\r\n", "\n").replace("\r", "\n")
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                if line.strip():
+                    msg = Message.parse(line)
+                    if msg.command:
+                        await self._dispatch(msg)
         while True:
             data = await self.reader.read(4096)
             if not data:
@@ -163,6 +172,11 @@ class Client:
         if self.nick and self.user and not self._registered:
             self._registered = True
             await self._send_welcome()
+            # Announce to linked peers
+            for link in self.server.links.values():
+                await link.send_raw(
+                    f"SNICK {self.nick} {self.user} {self.host} :{self.realname}"
+                )
 
     async def _send_welcome(self) -> None:
         await self.send_numeric(
@@ -466,19 +480,26 @@ class Client:
             )
             await self._notify_mentions(target, text)
         else:
-            recipient = self.server.clients.get(target)
+            from server.remote_client import RemoteClient
+            recipient = self.server.get_client(target)
             if not recipient:
                 await self.send_numeric(
                     replies.ERR_NOSUCHNICK, target, "No such nick"
                 )
                 return
-            await recipient.send(relay)
+            if isinstance(recipient, RemoteClient):
+                # Send DM through the S2S link
+                await recipient.link.send_raw(
+                    f":{self.server.config.name} SMSG {target} {self.nick} :{text}"
+                )
+            else:
+                await recipient.send(relay)
             await self.server.emit_event(
                 Event(
                     type=EventType.MESSAGE,
                     channel=None,
                     nick=self.nick,
-                    data={"text": text},
+                    data={"text": text, "target": target},
                 )
             )
             await self._notify_mentions(None, text)
@@ -486,6 +507,8 @@ class Client:
     async def _notify_mentions(
         self, channel_name: str | None, text: str
     ) -> None:
+        from server.remote_client import RemoteClient
+
         mentioned_nicks = re.findall(r"@(\S+)", text)
         if not mentioned_nicks:
             return
@@ -499,7 +522,7 @@ class Client:
             if nick in seen or nick == self.nick:
                 continue
             seen.add(nick)
-            target_client = self.server.clients.get(nick)
+            target_client = self.server.get_client(nick)
             if not target_client:
                 continue
             if channel and target_client not in channel.members:
@@ -512,7 +535,13 @@ class Client:
                     f"{self.nick} mentioned you in {source}: {text}",
                 ],
             )
-            await target_client.send(notice)
+            if isinstance(target_client, RemoteClient):
+                # Send mention notice through S2S link
+                await target_client.link.send_raw(
+                    f":{self.server.config.name} SNOTICE {nick} {self.server.config.name} :{self.nick} mentioned you in {source}: {text}"
+                )
+            else:
+                await target_client.send(notice)
 
     async def _handle_notice(self, msg: Message) -> None:
         # Same as PRIVMSG but no error replies per RFC 2812
@@ -539,23 +568,31 @@ class Client:
                     type=EventType.MESSAGE,
                     channel=target,
                     nick=self.nick,
-                    data={"text": text},
+                    data={"text": text, "notice": True},
                 )
             )
         else:
-            recipient = self.server.clients.get(target)
+            from server.remote_client import RemoteClient
+            recipient = self.server.get_client(target)
             if recipient:
-                await recipient.send(relay)
+                if isinstance(recipient, RemoteClient):
+                    await recipient.link.send_raw(
+                        f":{self.server.config.name} SNOTICE {target} {self.nick} :{text}"
+                    )
+                else:
+                    await recipient.send(relay)
                 await self.server.emit_event(
                     Event(
                         type=EventType.MESSAGE,
                         channel=None,
                         nick=self.nick,
-                        data={"text": text},
+                        data={"text": text, "notice": True, "target": target},
                     )
                 )
 
     async def _handle_who(self, msg: Message) -> None:
+        from server.remote_client import RemoteClient
+
         if not msg.params:
             await self.send_numeric(
                 replies.RPL_ENDOFWHO, "*", "End of WHO list"
@@ -572,12 +609,17 @@ class Client:
                         flags += "@"
                     elif channel.is_voiced(member):
                         flags += "+"
+                    server_name = (
+                        member.server_name
+                        if isinstance(member, RemoteClient)
+                        else self.server.config.name
+                    )
                     await self.send_numeric(
                         replies.RPL_WHOREPLY,
                         target,
                         member.user or "*",
                         member.host,
-                        self.server.config.name,
+                        server_name,
                         member.nick,
                         flags,
                         f"0 {member.realname or ''}",
@@ -586,7 +628,7 @@ class Client:
                 replies.RPL_ENDOFWHO, target, "End of WHO list"
             )
         else:
-            client = self.server.clients.get(target)
+            client = self.server.get_client(target)
             if client:
                 chan_name = "*"
                 flags = "H"
@@ -597,12 +639,17 @@ class Client:
                     elif ch.is_voiced(client):
                         flags += "+"
                     break
+                server_name = (
+                    client.server_name
+                    if isinstance(client, RemoteClient)
+                    else self.server.config.name
+                )
                 await self.send_numeric(
                     replies.RPL_WHOREPLY,
                     chan_name,
                     client.user or "*",
                     client.host,
-                    self.server.config.name,
+                    server_name,
                     client.nick,
                     flags,
                     f"0 {client.realname or ''}",
@@ -612,6 +659,8 @@ class Client:
             )
 
     async def _handle_whois(self, msg: Message) -> None:
+        from server.remote_client import RemoteClient
+
         if not msg.params:
             await self.send_numeric(
                 replies.ERR_NONICKNAMEGIVEN, "No nickname given"
@@ -619,7 +668,7 @@ class Client:
             return
 
         target_nick = msg.params[0]
-        target = self.server.clients.get(target_nick)
+        target = self.server.get_client(target_nick)
         if not target:
             await self.send_numeric(
                 replies.ERR_NOSUCHNICK, target_nick, "No such nick/channel"
@@ -637,10 +686,15 @@ class Client:
             "*",
             target.realname or "",
         )
+        server_name = (
+            target.server_name
+            if isinstance(target, RemoteClient)
+            else self.server.config.name
+        )
         await self.send_numeric(
             replies.RPL_WHOISSERVER,
             target.nick,
-            self.server.config.name,
+            server_name,
             "agentirc",
         )
         if target.channels:

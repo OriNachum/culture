@@ -1,4 +1,14 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+@dataclass
+class LinkConfig:
+    """Configuration for a server-to-server link."""
+
+    name: str
+    host: str
+    port: int
+    password: str
 
 
 @dataclass
@@ -8,3 +18,4 @@ class ServerConfig:
     name: str = "agentirc"
     host: str = "0.0.0.0"
     port: int = 6667
+    links: list[LinkConfig] = field(default_factory=list)

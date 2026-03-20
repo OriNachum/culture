@@ -1,7 +1,7 @@
 # tests/conftest.py
 import asyncio
 import pytest_asyncio
-from server.config import ServerConfig
+from server.config import LinkConfig, ServerConfig
 from server.ircd import IRCd
 
 
@@ -67,6 +67,105 @@ async def make_client(server):
             await client.send(f"USER {user} 0 * :{user}")
         if nick and user:
             # Drain welcome messages
+            await client.recv_all(timeout=0.5)
+        clients.append(client)
+        return client
+
+    yield _make
+
+    for c in clients:
+        try:
+            await c.close()
+        except Exception:
+            pass
+
+
+@pytest_asyncio.fixture
+async def linked_servers():
+    """Two IRCd instances linked via S2S federation."""
+    password = "testlink123"
+
+    config_a = ServerConfig(
+        name="alpha",
+        host="127.0.0.1",
+        port=0,
+        links=[LinkConfig(name="beta", host="127.0.0.1", port=0, password=password)],
+    )
+    config_b = ServerConfig(
+        name="beta",
+        host="127.0.0.1",
+        port=0,
+        links=[LinkConfig(name="alpha", host="127.0.0.1", port=0, password=password)],
+    )
+
+    server_a = IRCd(config_a)
+    server_b = IRCd(config_b)
+
+    await server_a.start()
+    await server_b.start()
+
+    server_a.config.port = server_a._server.sockets[0].getsockname()[1]
+    server_b.config.port = server_b._server.sockets[0].getsockname()[1]
+
+    # Update link configs with actual ports
+    config_a.links[0].port = server_b.config.port
+    config_b.links[0].port = server_a.config.port
+
+    # Server A connects to Server B
+    await server_a.connect_to_peer("127.0.0.1", server_b.config.port, password)
+    # Wait for handshake to complete
+    for _ in range(50):
+        if "beta" in server_a.links and "alpha" in server_b.links:
+            break
+        await asyncio.sleep(0.05)
+
+    yield server_a, server_b
+
+    await server_a.stop()
+    await server_b.stop()
+
+
+@pytest_asyncio.fixture
+async def make_client_a(linked_servers):
+    """Create test clients connected to server A."""
+    server_a, _ = linked_servers
+    clients = []
+
+    async def _make(nick: str | None = None, user: str | None = None) -> IRCTestClient:
+        reader, writer = await asyncio.open_connection("127.0.0.1", server_a.config.port)
+        client = IRCTestClient(reader, writer)
+        if nick:
+            await client.send(f"NICK {nick}")
+        if user:
+            await client.send(f"USER {user} 0 * :{user}")
+        if nick and user:
+            await client.recv_all(timeout=0.5)
+        clients.append(client)
+        return client
+
+    yield _make
+
+    for c in clients:
+        try:
+            await c.close()
+        except Exception:
+            pass
+
+
+@pytest_asyncio.fixture
+async def make_client_b(linked_servers):
+    """Create test clients connected to server B."""
+    _, server_b = linked_servers
+    clients = []
+
+    async def _make(nick: str | None = None, user: str | None = None) -> IRCTestClient:
+        reader, writer = await asyncio.open_connection("127.0.0.1", server_b.config.port)
+        client = IRCTestClient(reader, writer)
+        if nick:
+            await client.send(f"NICK {nick}")
+        if user:
+            await client.send(f"USER {user} 0 * :{user}")
+        if nick and user:
             await client.recv_all(timeout=0.5)
         clients.append(client)
         return client

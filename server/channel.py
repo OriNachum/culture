@@ -1,8 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from server.client import Client
+    from server.remote_client import RemoteClient
+
+    Member = Union[Client, RemoteClient]
 
 
 class Channel:
