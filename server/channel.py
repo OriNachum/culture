@@ -18,9 +18,17 @@ class Channel:
         self.operators: set[Client] = set()
         self.voiced: set[Client] = set()
 
+    def _local_members(self) -> set[Client]:
+        """Return only local (non-remote) members."""
+        from server.remote_client import RemoteClient
+        return {m for m in self.members if not isinstance(m, RemoteClient)}
+
     def add(self, client: Client) -> None:
-        if not self.members:
-            self.operators.add(client)
+        # Only grant op to the first LOCAL joiner
+        if not self._local_members():
+            from server.remote_client import RemoteClient
+            if not isinstance(client, RemoteClient):
+                self.operators.add(client)
         self.members.add(client)
 
     def remove(self, client: Client) -> None:
@@ -28,8 +36,11 @@ class Channel:
         was_op = client in self.operators
         self.operators.discard(client)
         self.voiced.discard(client)
-        if was_op and not self.operators and self.members:
-            self.operators.add(min(self.members, key=lambda m: m.nick))
+        if was_op and not self.operators:
+            # Auto-promote only among local members
+            local = self._local_members()
+            if local:
+                self.operators.add(min(local, key=lambda m: m.nick))
 
     def is_operator(self, client: Client) -> bool:
         return client in self.operators

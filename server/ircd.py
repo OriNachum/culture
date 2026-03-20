@@ -66,17 +66,16 @@ class IRCd:
                     "Skill %s failed on event %s", skill.name, event.type
                 )
 
-        # Relay to linked peers (skip origin to prevent loops)
-        origin = event.data.get("_origin")
-        for peer_name, link in list(self.links.items()):
-            if peer_name == origin:
-                continue
-            try:
-                await link.relay_event(event)
-            except Exception:
-                logging.getLogger(__name__).exception(
-                    "Failed to relay event to %s", peer_name
-                )
+        # Relay to linked peers — only relay locally-originated events
+        # (no mesh routing; scope is direct peers only)
+        if not event.data.get("_origin"):
+            for peer_name, link in list(self.links.items()):
+                try:
+                    await link.relay_event(event)
+                except Exception:
+                    logging.getLogger(__name__).exception(
+                        "Failed to relay event to %s", peer_name
+                    )
 
     def get_skill_for_command(self, command: str) -> Skill | None:
         for skill in self.skills:
@@ -133,18 +132,14 @@ class IRCd:
         msg = Message.parse(first_line)
 
         if msg.command == "PASS":
-            # S2S connection - use our configured link password for validation
+            # S2S connection - password validated after SERVER reveals peer name
             if not self.config.links:
-                # No links configured, reject
                 writer.write(b"ERROR :No links configured\r\n")
                 await writer.drain()
                 writer.close()
                 return
-            # Use the first configured link password as the expected password
-            # (all links share the same validation on the receiving side)
-            password = self.config.links[0].password
 
-            link = ServerLink(reader, writer, self, password, initiator=False)
+            link = ServerLink(reader, writer, self, password=None, initiator=False)
             try:
                 await link.handle(initial_msg=text)
             except (ConnectionError, asyncio.IncompleteReadError):

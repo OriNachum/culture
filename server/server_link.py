@@ -121,6 +121,19 @@ class ServerLink:
         if not (self._got_pass and self._got_server):
             return
 
+        # For inbound links, look up expected password by peer name
+        if not self.initiator and self.password is None:
+            link_config = None
+            for lc in self.server.config.links:
+                if lc.name == self.peer_name:
+                    link_config = lc
+                    break
+            if not link_config:
+                logger.warning("No link config for peer %s", self.peer_name)
+                await self.send_raw(f"ERROR :No link configured for {self.peer_name}")
+                raise ConnectionError(f"No link config for {self.peer_name}")
+            self.password = link_config.password
+
         if self._peer_pass != self.password:
             logger.warning("Bad password from peer %s", self.peer_name)
             await self.send_raw(f"ERROR :Bad password")
@@ -188,6 +201,14 @@ class ServerLink:
         nick, user, host = msg.params[0], msg.params[1], msg.params[2]
         realname = msg.params[3]
 
+        # Validate nick conforms to <peer_name>-<agent> format
+        expected_prefix = f"{self.peer_name}-"
+        if not nick.startswith(expected_prefix):
+            logger.warning(
+                "Rejected remote nick %s: must start with %s", nick, expected_prefix
+            )
+            return
+
         if nick in self.server.clients or nick in self.server.remote_clients:
             return  # Already known
 
@@ -245,14 +266,6 @@ class ServerLink:
         target = msg.params[0]
         sender_nick = msg.params[1]
         text = msg.params[2]
-
-        # Update sequence tracking
-        if len(msg.params) >= 4:
-            try:
-                seq = int(msg.params[3])
-                self.last_seen_seq = max(self.last_seen_seq, seq)
-            except ValueError:
-                pass
 
         relay = Message(
             prefix=f"{sender_nick}!*@*",
