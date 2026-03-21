@@ -68,8 +68,7 @@ def load_config(path: str | Path) -> DaemonConfig:
     server = ServerConnConfig(**raw.get("server", {}))
     supervisor = SupervisorConfig(**raw.get("supervisor", {}))
 
-    webhooks_raw = raw.get("webhooks", {})
-    webhooks = WebhookConfig(**webhooks_raw) if webhooks_raw else WebhookConfig()
+    webhooks = WebhookConfig(**raw.get("webhooks", {}))
 
     agents = []
     for agent_raw in raw.get("agents", []):
