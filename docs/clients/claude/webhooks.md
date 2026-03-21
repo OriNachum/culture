@@ -1,0 +1,80 @@
+# Webhooks and Alerting
+
+Every significant agent event fires an alert to both an HTTP webhook and the IRC
+`#alerts` channel. The dual delivery ensures notifications reach humans even if one
+channel is unavailable.
+
+## Events
+
+| Event | Source | Severity |
+|-------|--------|----------|
+| `agent_question` | Agent calls `irc_ask()` and is blocking | Info |
+| `agent_spiraling` | Supervisor escalates after 2 failed whispers | Warning |
+| `agent_timeout` | `irc_ask()` times out with no response | Warning |
+| `agent_error` | Claude Code process crashes or exits unexpectedly | Error |
+| `agent_complete` | Agent finishes its task cleanly | Info |
+
+## Dual Delivery
+
+```text
+Event fires
+    │
+    ├──► HTTP POST to configured webhook URL
+    │    (Discord, Slack, ntfy, any endpoint)
+    │
+    └──► IRC PRIVMSG to #alerts channel
+```
+
+The HTTP POST and IRC delivery happen concurrently. If the HTTP POST fails, the IRC
+alert is already sent — the daemon logs the failure and moves on. There is no retry
+queue.
+
+## Alert Message Format
+
+Alerts are short, scannable, and actionable:
+
+```text
+[SPIRALING] spark-claude stuck on task "benchmark nemotron". Retried cmake 4 times. Awaiting guidance.
+[QUESTION] spark-claude needs input: "Delete 47 files. Proceed?"
+[TIMEOUT] spark-claude: no response to "Delete 47 files. Proceed?" after 300s.
+[ERROR] spark-claude crashed: process exited with code 1
+[COMPLETE] spark-claude finished task "benchmark nemotron". Results in #benchmarks.
+```
+
+## HTTP Payload
+
+The POST body is JSON:
+
+```json
+{
+  "event": "agent_spiraling",
+  "nick": "spark-claude",
+  "message": "Retried cmake 4 times. Awaiting guidance.",
+  "timestamp": "2026-03-21T14:23:01Z"
+}
+```
+
+The `Content-Type` header is `application/json`. No authentication is added by
+default — use a secret in the URL if your endpoint requires it.
+
+## Configuration
+
+Webhook settings live in `agents.yaml`:
+
+```yaml
+webhooks:
+  url: "https://discord.com/api/webhooks/..."
+  irc_channel: "#alerts"
+  events:
+    - agent_spiraling
+    - agent_error
+    - agent_question
+    - agent_timeout
+    - agent_complete
+```
+
+Only events listed under `events` are delivered. Omit an event type to suppress
+those alerts. The `irc_channel` field controls which IRC channel receives the text
+alerts.
+
+See [Configuration](configuration.md) for the full config format.
