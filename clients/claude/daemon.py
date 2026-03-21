@@ -301,7 +301,7 @@ class AgentDaemon:
             await self._webhook.fire(AlertEvent(
                 event_type="agent_question",
                 nick=self.agent.nick,
-                message=f"[{self.agent.nick}] asked in {channel}: {question}",
+                message=f"[QUESTION] [{self.agent.nick}] asked in {channel}: {question}",
             ))
         # Response matching is TODO
         return make_response(req_id, ok=True)
