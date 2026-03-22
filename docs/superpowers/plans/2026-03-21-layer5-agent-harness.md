@@ -25,7 +25,7 @@ clients/
     ├── message_buffer.py        # Per-channel ring buffer with read-cursor tracking
     ├── socket_server.py         # Unix socket server for skill IPC
     ├── webhook.py               # HTTP POST + IRC #alerts dual delivery
-    ├── agent_runner.py          # Claude Code process lifecycle (spawn, stdin, restart)
+    ├── agent_runner.py          # Claude Agent SDK session lifecycle (query, resume, prompt queue)
     ├── supervisor.py            # Sonnet 4.6 supervisor via Agent SDK
     ├── daemon.py                # Main orchestrator tying all components together
     └── skill/                   # Claude Code skill (installed to ~/.claude/skills/irc/)
@@ -1437,7 +1437,7 @@ git commit -m "feat(layer5): add webhook client with HTTP + IRC dual delivery"
 - Create: `clients/claude/agent_runner.py`
 - Create: `tests/test_agent_runner.py`
 
-Manages the Claude Code subprocess lifecycle. Spawns `claude --dangerously-skip-permissions`, pipes stdin for commands (compact/clear), handles crash recovery.
+Manages the Claude Agent SDK session lifecycle. Uses `query()` with `permission_mode="bypassPermissions"`, queues prompts for commands (compact/clear), handles crash recovery.
 
 - [ ] **Step 1: Write failing tests**
 
@@ -2159,14 +2159,14 @@ class AgentDaemon:
         self.socket_server = SocketServer(self.socket_path, self._handle_ipc)
         await self.socket_server.start()
 
-        # Agent runner (Claude Code process)
+        # Agent runner (Claude Agent SDK session)
         if not self.skip_claude:
             await self._start_agent()
 
     async def _start_agent(self) -> None:
-        """Start the Claude Code subprocess."""
+        """Start the Claude Agent SDK session."""
         self.agent_runner = AgentRunner(
-            command=["claude", "--dangerously-skip-permissions"],
+            # Uses Claude Agent SDK query() with permission_mode="bypassPermissions"
             directory=self.agent.directory,
             on_exit=self._on_agent_exit,
         )
