@@ -57,14 +57,14 @@ jobs:
       - name: Build and publish agentirc-cli to TestPyPI
         run: |
           uv build
-          uv publish --publish-url https://test.pypi.org/legacy/ --trusted-publishing always
+          uv publish --publish-url https://test.pypi.org/legacy/ --trusted-publishing always --check-url https://test.pypi.org/simple/
 
       - name: Build and publish agentirc to TestPyPI
         run: |
           sed -i 's/^name = "agentirc-cli"/name = "agentirc"/' pyproject.toml
           rm -rf dist
           uv build
-          uv publish --publish-url https://test.pypi.org/legacy/ --trusted-publishing always
+          uv publish --publish-url https://test.pypi.org/legacy/ --trusted-publishing always --check-url https://test.pypi.org/simple/
 
       - name: Print install commands
         run: |
@@ -90,4 +90,4 @@ jobs:
 
       - run: uv build
 
-      - run: uv publish --trusted-publishing always
+      - run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/

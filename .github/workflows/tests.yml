@@ -20,3 +20,30 @@ jobs:
       - run: uv sync
 
       - run: uv run pytest -v
+
+  version-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          git checkout origin/main -- pyproject.toml
+          MAIN_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          git checkout HEAD -- pyproject.toml
+
+          if [ "$PR_VERSION" = "$MAIN_VERSION" ]; then
+            gh pr comment ${{ github.event.pull_request.number }} \
+              --body "⚠️ **Version not bumped** — \`pyproject.toml\` still has \`$PR_VERSION\` (same as main). Run \`/version-bump patch\` (or minor/major) before merging to avoid a failed PyPI publish."
+            echo "::warning::Version $PR_VERSION matches main. Bump before merging."
+          else
+            echo "Version bumped: $MAIN_VERSION -> $PR_VERSION"
+          fi
