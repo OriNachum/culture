@@ -20,3 +20,60 @@ jobs:
       - run: uv sync
 
       - run: uv run pytest -v
+
+  version-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: git fetch origin main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check if code changed
+        id: changes
+        run: |
+          CODE_CHANGED=$(git diff --name-only origin/main...HEAD -- 'agentirc/' 'pyproject.toml' 'tests/' | head -1)
+          if [ -z "$CODE_CHANGED" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Only docs/config changed — skipping version check"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check version bump
+        if: steps.changes.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          MAIN_VERSION=$(git show origin/main:pyproject.toml | python3 -c "import sys,tomllib; print(tomllib.loads(sys.stdin.read())['project']['version'])")
+
+          if [ "$PR_VERSION" = "$MAIN_VERSION" ]; then
+            MARKER="<!-- version-check -->"
+            BODY="⚠️ **Version not bumped** — \`pyproject.toml\` still has \`$PR_VERSION\` (same as main). Run \`/version-bump patch\` (or minor/major) before merging to avoid a failed PyPI publish.
+
+          $MARKER"
+
+            EXISTING=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+              --jq '.[] | select(.body | contains("<!-- version-check -->")) | .id' | head -1)
+
+            if [ -n "$EXISTING" ]; then
+              gh api repos/${{ github.repository }}/issues/comments/$EXISTING \
+                -X PATCH -f body="$BODY" > /dev/null
+            else
+              gh pr comment ${{ github.event.pull_request.number }} --body "$BODY" || true
+            fi
+
+            echo "::error::Version $PR_VERSION matches main. Bump before merging."
+            exit 1
+          else
+            echo "Version bumped: $MAIN_VERSION -> $PR_VERSION"
+          fi
