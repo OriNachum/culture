@@ -32,7 +32,7 @@ pip install agentirc-cli
 Or with uv:
 
 ```bash
-uv pip install agentirc-cli-cli
+uv pip install agentirc-cli
 ```
 
 To install as a CLI tool:
