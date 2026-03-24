@@ -1,19 +1,13 @@
+# ASSIMILAI: Replace BACKEND with your backend name (e.g., codex, opencode)
 """Generic agent daemon — template for new backends.
 
 Copy this file into your backend directory and replace:
 - _start_agent_runner() — wire up your agent's SDK/CLI
 - _build_system_prompt() — customize the system prompt
-- _on_agent_message() — handle agent output (post to IRC)
+- _on_mention() — customize how @mentions become prompts
 
 Everything else (IRC transport, IPC, socket server, webhooks) works as-is.
 """
-
-# NOTE: When assimilating, update these imports to match your backend's
-# directory structure. For example, if your backend is at
-# agentirc/clients/codex/, change:
-#   from agentirc.clients.claude.config import ...
-# to:
-#   from agentirc.clients.codex.config import ...
 
 from __future__ import annotations
 
@@ -23,12 +17,12 @@ import os
 from typing import Any
 
 # These imports point to YOUR backend's copies of these files:
-from .config import DaemonConfig, AgentConfig
-from .ipc import make_response
-from .irc_transport import IRCTransport
-from .message_buffer import MessageBuffer
-from .socket_server import SocketServer
-from .webhook import WebhookClient, AlertEvent
+from agentirc.clients.BACKEND.config import DaemonConfig, AgentConfig
+from agentirc.clients.BACKEND.ipc import make_response
+from agentirc.clients.BACKEND.irc_transport import IRCTransport
+from agentirc.clients.BACKEND.message_buffer import MessageBuffer
+from agentirc.clients.BACKEND.socket_server import SocketServer
+from agentirc.clients.BACKEND.webhook import WebhookClient, AlertEvent
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +33,7 @@ class AgentDaemon:
     This is the template. When assimilating into a new backend:
     1. Replace _start_agent_runner() with your agent's startup logic
     2. Replace _build_system_prompt() with your prompt format
-    3. Adapt _on_agent_message() for your agent's output format
+    3. Adapt _on_mention() for your agent's prompt format
     """
 
     def __init__(self, config: DaemonConfig, agent: AgentConfig,
@@ -58,6 +52,10 @@ class AgentDaemon:
         self._socket_server: SocketServer | None = None
         self._webhook: WebhookClient | None = None
         self._stop_event: asyncio.Event | None = None
+
+    def set_stop_event(self, event: asyncio.Event) -> None:
+        """Register an external stop event for coordinated shutdown."""
+        self._stop_event = event
 
     async def start(self) -> None:
         """Start all daemon components."""
@@ -79,7 +77,7 @@ class AgentDaemon:
         # 3. Webhook client
         self._webhook = WebhookClient(
             config=self.config.webhooks,
-            send_irc=self._transport.send_privmsg,
+            irc_send=self._transport.send_privmsg,
         )
 
         # 4. Unix socket server
@@ -95,7 +93,6 @@ class AgentDaemon:
 
     async def stop(self) -> None:
         """Stop all daemon components."""
-        # Stop in reverse order
         if self._socket_server:
             await self._socket_server.stop()
         if self._transport:
@@ -151,6 +148,19 @@ class AgentDaemon:
                 })
             return make_response(req_id, ok=False, error="No buffer")
 
+        elif msg_type == "irc_ask":
+            channel = msg.get("channel", "")
+            message = msg.get("message", "")
+            if self._transport and channel:
+                await self._transport.send_privmsg(channel, message)
+            if self._webhook:
+                await self._webhook.fire(AlertEvent(
+                    event_type="agent_question",
+                    nick=self.agent.nick,
+                    message=f"[QUESTION] [{self.agent.nick}] asked in {channel}: {message}",
+                ))
+            return make_response(req_id, ok=True)
+
         elif msg_type == "irc_join":
             channel = msg.get("channel", "")
             if self._transport:
@@ -173,9 +183,29 @@ class AgentDaemon:
             channels = self._transport.channels if self._transport else []
             return make_response(req_id, ok=True, data={"channels": channels})
 
+        elif msg_type == "compact":
+            # Send /compact to agent runner — ADAPT for your backend
+            logger.info("IPC compact requested")
+            return make_response(req_id, ok=True)
+
+        elif msg_type == "clear":
+            # Send /clear to agent runner — ADAPT for your backend
+            logger.info("IPC clear requested")
+            return make_response(req_id, ok=True)
+
+        elif msg_type == "set_directory":
+            path = msg.get("path", "")
+            if not path:
+                return make_response(req_id, ok=False, error="Missing 'path'")
+            # Change agent working directory — ADAPT for your backend
+            logger.info("IPC set_directory: %s", path)
+            return make_response(req_id, ok=True)
+
         elif msg_type == "shutdown":
             if self._stop_event:
                 self._stop_event.set()
+            else:
+                asyncio.create_task(self.stop())
             return make_response(req_id, ok=True)
 
         else:

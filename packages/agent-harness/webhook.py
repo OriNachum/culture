@@ -1,3 +1,4 @@
+# ASSIMILAI: Replace BACKEND with your backend name (e.g., codex, opencode)
 from __future__ import annotations
 
 import asyncio
@@ -7,7 +8,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Callable, Awaitable
 
-from agentirc.clients.claude.config import WebhookConfig
+from agentirc.clients.BACKEND.config import WebhookConfig
 
 logger = logging.getLogger(__name__)
 

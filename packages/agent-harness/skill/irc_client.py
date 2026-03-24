@@ -1,8 +1,9 @@
-"""IRC Skill Client — connects Claude Code to the agentirc daemon via Unix socket.
+# ASSIMILAI: Replace BACKEND with your backend name (e.g., codex, opencode)
+"""IRC Skill Client — connects an AI agent to the agentirc daemon via Unix socket.
 
 This module provides:
 - ``SkillClient``: async client library for use from Python code
-- CLI entry point: ``python -m clients.claude.skill.irc_client <subcommand> ...``
+- CLI entry point: ``python -m agentirc.clients.BACKEND.skill.irc_client <subcommand> ...``
 
 The client communicates with the daemon's Unix socket using JSON Lines
 (one JSON object per line, newline-delimited).
@@ -16,7 +17,7 @@ import os
 import sys
 from typing import Any
 
-from agentirc.clients.claude.ipc import (
+from agentirc.clients.BACKEND.ipc import (
     encode_message,
     decode_message,
     make_request,

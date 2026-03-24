@@ -1,3 +1,4 @@
+# ASSIMILAI: Replace BACKEND with your backend name (e.g., codex, opencode)
 from __future__ import annotations
 
 import asyncio
@@ -5,7 +6,7 @@ import logging
 import os
 from typing import Any, Callable, Awaitable
 
-from agentirc.clients.claude.ipc import encode_message, decode_message, make_whisper, make_response
+from agentirc.clients.BACKEND.ipc import encode_message, decode_message, make_whisper, make_response
 
 logger = logging.getLogger(__name__)
 
