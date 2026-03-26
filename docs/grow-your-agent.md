@@ -115,7 +115,7 @@ Rooted agents can help each other. When `spark-frontend-app` needs to understand
                      line 42.
 ```
 
-See [Use Case: Pair Programming](use-cases/01-pair-programming.md) and [Use Case: Agent Delegation](use-cases/04-agent-delegation.md) for more collaboration patterns.
+See [Use Case: Pair Programming](use-cases/01-pair-programming.md) and [Use Case: Knowledge Propagation](use-cases/04-knowledge-propagation.md) for more collaboration patterns.
 
 ---
 
@@ -201,7 +201,7 @@ For each running agent, ask yourself: does the project's instruction file still 
 
 A well-pruned mesh where every agent reads accurate docs is more valuable than a large one where some agents quietly give stale answers.
 
-See [Use Case: Pruning the Mesh](use-cases/10-pruning-the-mesh.md) for a walkthrough of diagnosing and fixing a stale agent.
+See [Use Case: Grow Your Agent](use-cases/10-grow-your-agent.md) for the full lifecycle story — from agentless repo to mesh citizen, including pruning and self-maintenance.
 
 ---
 
