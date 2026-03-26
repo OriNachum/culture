@@ -5,6 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import shutil
+import tempfile
 from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
@@ -27,6 +30,7 @@ class CodexAgentRunner:
         self.on_exit = on_exit
         self.on_message = on_message
 
+        self._isolated_home: str | None = None
         self._process: asyncio.subprocess.Process | None = None
         self._thread_id: str | None = None
         self._running = False
@@ -50,12 +54,20 @@ class CodexAgentRunner:
         """Start codex app-server as a subprocess and initialize a thread."""
         self._stopping = False
 
+        # Isolate from host config (~/.codex/, XDG, etc.)
+        self._isolated_home = tempfile.mkdtemp(prefix="agentirc-codex-")
+        isolated_env = dict(os.environ)
+        isolated_env["HOME"] = self._isolated_home
+        isolated_env.pop("CODEX_HOME", None)
+        isolated_env.pop("XDG_CONFIG_HOME", None)
+
         # Spawn codex app-server in stdio mode
         self._process = await asyncio.create_subprocess_exec(
             "codex", "app-server",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
+            env=isolated_env,
         )
 
         # Start reading responses
@@ -121,6 +133,10 @@ class CodexAgentRunner:
             if not future.done():
                 future.set_exception(ConnectionError("Runner stopped"))
         self._pending.clear()
+
+        if self._isolated_home:
+            shutil.rmtree(self._isolated_home, ignore_errors=True)
+            self._isolated_home = None
 
     async def send_prompt(self, text: str) -> None:
         """Queue a prompt for the agent."""
