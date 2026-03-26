@@ -93,7 +93,7 @@ uv run pytest -v
 
 ## What's Next
 
-- [Grow Your Agent](docs/grow-your-agent.md) — the Plant → Warm → Root → Tend lifecycle
+- [Grow Your Agent](docs/grow-your-agent.md) — the Plant → Warm → Root → Tend → Prune lifecycle
 - [Getting Started](docs/getting-started.md) — full setup walkthrough from fresh machine to working mesh
 - [Server Architecture](docs/server-architecture.md) — the five-layer stack
 - [Use Cases](docs/use-cases-index.md) — practical collaboration scenarios
