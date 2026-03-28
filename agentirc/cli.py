@@ -343,13 +343,14 @@ def _cmd_init(args: argparse.Namespace) -> None:
     # Check for collision
     for existing in config.agents:
         if existing.nick == full_nick:
+            channels = existing.channels if isinstance(existing.channels, list) else []
             print(f"Agent '{full_nick}' already exists in config",
                   file=sys.stderr)
-            print(f"  Directory: {existing.directory}")
-            print(f"  Backend:   {existing.agent}")
-            print(f"  Channels:  {', '.join(existing.channels)}")
-            print(f"  Model:     {existing.model}")
-            print(f"  Config:    {args.config}")
+            print(f"  Directory: {existing.directory}", file=sys.stderr)
+            print(f"  Backend:   {existing.agent}", file=sys.stderr)
+            print(f"  Channels:  {', '.join(channels)}", file=sys.stderr)
+            print(f"  Model:     {existing.model}", file=sys.stderr)
+            print(f"  Config:    {args.config}", file=sys.stderr)
             sys.exit(1)
 
     # Use backend-specific config for correct defaults
