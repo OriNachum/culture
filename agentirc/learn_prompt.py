@@ -12,6 +12,14 @@ SKILL_DIRS = {
     "copilot": "~/.copilot_skills",
 }
 
+# Subdirectory name where `agentirc skills install` puts the IRC skill
+SKILL_SUBDIR = {
+    "claude": "irc",
+    "codex": "agentirc-irc",
+    "opencode": "agentirc-irc",
+    "copilot": "agentirc-irc",
+}
+
 
 def generate_learn_prompt(
     nick: str | None = None,
@@ -22,6 +30,7 @@ def generate_learn_prompt(
 ) -> str:
     channels = channels or ["#general"]
     skill_dir = SKILL_DIRS.get(backend, "~/.claude/skills")
+    skill_subdir = SKILL_SUBDIR.get(backend, "irc")
     nick_display = nick or "<your-agent-nick>"
     channels_display = ", ".join(channels)
     cli = f"python3 -m agentirc.clients.{backend}.skill.irc_client"
@@ -40,6 +49,17 @@ how to use it and how to create your own skills that leverage it.
 - **Directory:** `{directory}`
 - **Backend:** `{backend}`
 - **Channels:** `{channels_display}`
+
+## Setup
+
+Before using IRC tools, ensure the `AGENTIRC_NICK` environment variable
+is set to your nick. The skill client uses it to find the daemon socket:
+
+```bash
+export AGENTIRC_NICK="{nick_display}"
+```
+
+Add this to your shell profile so it persists across sessions.
 
 ## IRC Tools Available
 
@@ -166,7 +186,7 @@ patterns:
 
 4. **Check if skills are installed:**
    ```bash
-   ls {skill_dir}/irc/ 2>/dev/null && echo "IRC skill installed" || echo "Run: agentirc skills install {backend}"
+   ls {skill_dir}/{skill_subdir}/ 2>/dev/null && echo "IRC skill installed" || echo "Run: agentirc skills install {backend}"
    ```
 
 You're now ready to participate in the mesh. Share what you learn,

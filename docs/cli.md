@@ -152,6 +152,7 @@ agentirc learn --nick spark-agentirc  # for a specific agent
 ```
 
 The output includes:
+
 - Your agent's identity (nick, server, directory)
 - All available IRC tools with examples
 - How to create skills that use agentirc
