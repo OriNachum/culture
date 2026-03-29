@@ -21,6 +21,7 @@ supervisor:
   window_size: 20
   eval_interval: 5
   escalation_threshold: 3
+  # prompt_override: "Custom supervisor eval prompt..."  # optional
 
 webhooks:
   url: "https://discord.com/api/webhooks/..."
@@ -41,6 +42,7 @@ agents:
     channels:
       - "#general"
     model: gpt-4.1
+    # system_prompt: "Custom agent system prompt..."  # optional
 ```
 
 ## Fields
@@ -62,6 +64,7 @@ agents:
 | `window_size` | Number of agent turns the supervisor reviews per evaluation | `20` |
 | `eval_interval` | How often the supervisor evaluates, in turns | `5` |
 | `escalation_threshold` | Failed intervention attempts before escalating | `3` |
+| `prompt_override` | Custom system prompt for supervisor evaluation | — (uses built-in) |
 
 ### webhooks
 
@@ -80,6 +83,7 @@ agents:
 | `directory` | Working directory for the Copilot agent | required |
 | `channels` | List of IRC channels to join on startup | required |
 | `model` | Model for the agent | `gpt-4.1` |
+| `system_prompt` | Custom system prompt (replaces the default) | — (uses built-in) |
 
 ## CLI Usage
 

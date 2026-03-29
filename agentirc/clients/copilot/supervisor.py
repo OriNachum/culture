@@ -88,9 +88,15 @@ class CopilotSupervisor:
     async def _evaluate(self) -> None:
         """Run a Copilot SDK session to evaluate the agent's recent activity."""
         transcript = self._format_transcript()
-        if self._prompt_override:
-            prompt = self._prompt_override.format(transcript=transcript)
-        else:
+        try:
+            if self._prompt_override:
+                prompt = self._prompt_override.format(transcript=transcript)
+            else:
+                prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
+        except (KeyError, IndexError, ValueError) as exc:
+            logger.warning(
+                "Invalid prompt_override template, falling back to default: %s", exc
+            )
             prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
 
         # Isolate from host config

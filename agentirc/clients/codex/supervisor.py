@@ -89,7 +89,13 @@ class CodexSupervisor:
         """Run codex exec to evaluate the agent's recent activity."""
         transcript = self._format_transcript()
         template = self.prompt_override or SUPERVISOR_PROMPT
-        prompt = template.format(transcript=transcript)
+        try:
+            prompt = template.format(transcript=transcript)
+        except (KeyError, IndexError, ValueError) as exc:
+            logger.warning(
+                "Invalid prompt_override template, falling back to default: %s", exc
+            )
+            prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
 
         # Isolate from host config (~/.codex/, XDG, etc.)
         isolated_home = tempfile.mkdtemp(prefix="agentirc-codex-sv-")
