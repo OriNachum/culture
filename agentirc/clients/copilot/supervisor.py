@@ -53,6 +53,7 @@ class CopilotSupervisor:
         escalation_threshold: int = 3,
         on_whisper: Callable[[str, str], Awaitable[None]] | None = None,
         on_escalation: Callable[[str], Awaitable[None]] | None = None,
+        prompt_override: str = "",
     ):
         self.model = model
         self.window_size = window_size
@@ -61,6 +62,7 @@ class CopilotSupervisor:
         self.on_whisper = on_whisper
         self.on_escalation = on_escalation
 
+        self._prompt_override = prompt_override
         self._turns: list[dict[str, Any]] = []
         self._turn_count = 0
         self._escalation_count = 0
@@ -86,7 +88,16 @@ class CopilotSupervisor:
     async def _evaluate(self) -> None:
         """Run a Copilot SDK session to evaluate the agent's recent activity."""
         transcript = self._format_transcript()
-        prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
+        try:
+            if self._prompt_override:
+                prompt = self._prompt_override.format(transcript=transcript)
+            else:
+                prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
+        except (KeyError, IndexError, ValueError) as exc:
+            logger.warning(
+                "Invalid prompt_override template, falling back to default: %s", exc
+            )
+            prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
 
         # Isolate from host config
         isolated_home = tempfile.mkdtemp(prefix="agentirc-copilot-sv-")

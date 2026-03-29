@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.0] - 2026-03-29
+
+### Added
+
+- `system_prompt` field in AgentConfig — custom system prompt via agents.yaml (all backends)
+- `prompt_override` field in SupervisorConfig — custom supervisor eval prompt via config (all backends)
+- Status/pause/resume IPC handlers for OpenCode, Codex, and Copilot daemons (parity with Claude)
+- Sleep scheduler with `sleep_start`/`sleep_end` config for OpenCode, Codex, and Copilot
+- Null relay target fix in `_query_agent_status()` to prevent misrouting
+
 ## [0.12.1] - 2026-03-29
 
 

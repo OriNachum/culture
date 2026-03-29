@@ -7,6 +7,7 @@ CodexSupervisor (codex exec for periodic evaluation).
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import os
 import time
@@ -66,6 +67,15 @@ class CodexDaemon:
         self._crash_times: list[float] = []
         self._circuit_open = False
 
+        # Pause/sleep state
+        self._paused: bool = False
+        self._last_activation: float | None = None
+
+        # Status query state — for asking the agent what it's doing
+        self._status_query_event: asyncio.Event | None = None
+        self._status_query_response: str = ""
+        self._last_activity_text: str = ""
+
         # Graceful shutdown
         self._stop_event: asyncio.Event | None = None
         self._pid_name: str = ""
@@ -114,6 +124,7 @@ class CodexDaemon:
             window_size=self.config.supervisor.window_size,
             eval_interval=self.config.supervisor.eval_interval,
             escalation_threshold=self.config.supervisor.escalation_threshold,
+            prompt_override=self.config.supervisor.prompt_override,
             on_whisper=self._on_supervisor_whisper,
             on_escalation=self._on_supervisor_escalation,
         )
@@ -122,12 +133,23 @@ class CodexDaemon:
         if not self.skip_codex:
             await self._start_agent_runner()
 
+        # 7. Sleep scheduler background task
+        self._sleep_task = asyncio.create_task(self._sleep_scheduler())
+
         logger.info(
             "CodexDaemon started for %s (socket=%s)", self.agent.nick, self._socket_path
         )
 
     async def stop(self) -> None:
         """Cleanly shut down all components."""
+        if hasattr(self, "_sleep_task") and self._sleep_task:
+            self._sleep_task.cancel()
+            try:
+                await self._sleep_task
+            except asyncio.CancelledError:
+                pass
+            self._sleep_task = None
+
         if self._agent_runner is not None:
             await self._agent_runner.stop()
             self._agent_runner = None
@@ -145,6 +167,54 @@ class CodexDaemon:
             remove_pid(self._pid_name)
 
         logger.info("CodexDaemon stopped for %s", self.agent.nick)
+
+    def _parse_sleep_schedule(self) -> tuple[int, int] | None:
+        """Parse sleep_start/sleep_end into minutes. Returns None if invalid."""
+        try:
+            sh, sm = (int(x) for x in self.config.sleep_start.split(":"))
+            wh, wm = (int(x) for x in self.config.sleep_end.split(":"))
+            if not (0 <= sh <= 23 and 0 <= sm <= 59 and 0 <= wh <= 23 and 0 <= wm <= 59):
+                raise ValueError("hours/minutes out of range")
+            return (sh * 60 + sm, wh * 60 + wm)
+        except (ValueError, AttributeError):
+            logger.warning(
+                "Invalid sleep schedule '%s'-'%s' for %s — scheduler disabled",
+                getattr(self.config, "sleep_start", None),
+                getattr(self.config, "sleep_end", None),
+                self.agent.nick,
+            )
+            return None
+
+    async def _sleep_scheduler(self) -> None:
+        """Background task that auto-pauses/resumes based on sleep schedule."""
+        schedule = self._parse_sleep_schedule()
+        if schedule is None:
+            return
+        sleep_minutes, wake_minutes = schedule
+
+        while True:
+            try:
+                await asyncio.sleep(60)  # Check every minute
+                now = datetime.datetime.now()
+                current_minutes = now.hour * 60 + now.minute
+
+                if sleep_minutes > wake_minutes:
+                    # Overnight: e.g., 23:00-08:00
+                    should_sleep = current_minutes >= sleep_minutes or current_minutes < wake_minutes
+                else:
+                    # Same day: e.g., 13:00-14:00
+                    should_sleep = sleep_minutes <= current_minutes < wake_minutes
+
+                if should_sleep and not self._paused:
+                    self._paused = True
+                    logger.info("Sleep schedule: pausing %s", self.agent.nick)
+                elif not should_sleep and self._paused:
+                    self._paused = False
+                    logger.info("Sleep schedule: resuming %s", self.agent.nick)
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                logger.exception("Sleep scheduler error")
 
     async def _graceful_shutdown(self) -> None:
         """Trigger a graceful shutdown, signaling any waiting stop event."""
@@ -179,7 +249,10 @@ class CodexDaemon:
 
         Formats a prompt and enqueues it so the Codex session picks it up.
         """
+        if self._paused:
+            return
         if self._agent_runner and self._agent_runner.is_running():
+            self._last_activation = time.time()
             # Enqueue relay target (FIFO matches prompt queue order)
             self._mention_targets.append(target if target.startswith("#") else sender)
             if target.startswith("#"):
@@ -209,7 +282,24 @@ class CodexDaemon:
         if self._supervisor:
             await self._supervisor.observe(msg)
 
+        # Capture last assistant text for status reporting
+        if msg.get("type") == "assistant":
+            for block in msg.get("content", []):
+                if isinstance(block, dict) and block.get("type") == "text":
+                    self._last_activity_text = block["text"]
+                    break
+                elif isinstance(block, str):
+                    self._last_activity_text = block
+                    break
+
+            # If a status query is pending, fulfill it
+            if self._status_query_event and not self._status_query_event.is_set():
+                self._status_query_response = self._last_activity_text
+                self._status_query_event.set()
+
     def _build_system_prompt(self) -> str:
+        if self.agent.system_prompt:
+            return self.agent.system_prompt
         return (
             f"You are {self.agent.nick}, an AI agent on the agentirc IRC network.\n"
             f"You have IRC tools available via the irc skill. Use them to communicate.\n"
@@ -333,6 +423,15 @@ class CodexDaemon:
             elif msg_type == "clear":
                 return await self._ipc_clear(req_id)
 
+            elif msg_type == "status":
+                return await self._ipc_status(req_id, msg)
+
+            elif msg_type == "pause":
+                return await self._ipc_pause(req_id)
+
+            elif msg_type == "resume":
+                return await self._ipc_resume(req_id)
+
             elif msg_type == "shutdown":
                 asyncio.create_task(self._graceful_shutdown())
                 return make_response(req_id, ok=True)
@@ -347,6 +446,82 @@ class CodexDaemon:
     # ------------------------------------------------------------------
     # IPC sub-handlers
     # ------------------------------------------------------------------
+
+    async def _ipc_pause(self, req_id: str) -> dict:
+        self._paused = True
+        logger.info("Agent %s paused", self.agent.nick)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_resume(self, req_id: str) -> dict:
+        self._paused = False
+        logger.info("Agent %s resumed", self.agent.nick)
+        # NOTE: Catch-up on missed messages is not yet implemented.
+        # IRCTransport does not process HISTORY responses into the buffer.
+        # The agent resumes and will see new messages going forward.
+        return make_response(req_id, ok=True)
+
+    async def _ipc_status(self, req_id: str, msg: dict | None = None) -> dict:
+        running = self._agent_runner is not None and self._agent_runner.is_running()
+        turn_count = self._supervisor._turn_count if self._supervisor else 0
+
+        # Determine activity description
+        query = msg.get("query", False) if msg else False
+        description = self._describe_activity(live_query=query)
+
+        # If live query requested and agent is active, ask the agent directly
+        if query and running and not self._paused:
+            description = await self._query_agent_status()
+
+        return make_response(req_id, ok=True, data={
+            "running": running,
+            "paused": self._paused,
+            "turn_count": turn_count,
+            "last_activation": self._last_activation,
+            "activity": "paused" if self._paused else ("working" if running else "idle"),
+            "description": description,
+        })
+
+    def _describe_activity(self, live_query: bool = False) -> str:
+        """Return a human-readable description of what the agent is doing."""
+        if self._paused:
+            return "paused"
+        if not self._last_activity_text:
+            return "nothing"
+        # Return first line of last activity, truncated
+        first_line = self._last_activity_text.strip().split("\n")[0]
+        if len(first_line) > 120:
+            first_line = first_line[:117] + "..."
+        return first_line
+
+    async def _query_agent_status(self) -> str:
+        """Ask the agent directly what it's working on."""
+        if not self._agent_runner or not self._agent_runner.is_running():
+            return "nothing"
+
+        self._status_query_event = asyncio.Event()
+        self._status_query_response = ""
+
+        try:
+            # Enqueue a None relay target so the status response doesn't
+            # steal a real mention's relay target from the deque.
+            self._mention_targets.append(None)
+            await self._agent_runner.send_prompt(
+                "[SYSTEM] Briefly describe what you are currently working on "
+                "in one sentence. Reply with just the description, no preamble."
+            )
+            # Wait up to 10s for the agent to respond
+            await asyncio.wait_for(self._status_query_event.wait(), timeout=10.0)
+            response = self._status_query_response.strip()
+            # Take first line, truncate
+            first_line = response.split("\n")[0]
+            if len(first_line) > 120:
+                first_line = first_line[:117] + "..."
+            return first_line or "nothing"
+        except asyncio.TimeoutError:
+            return "busy (no response)"
+        finally:
+            self._status_query_event = None
+            self._status_query_response = ""
 
     async def _ipc_irc_send(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")

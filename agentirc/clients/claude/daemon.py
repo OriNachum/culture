@@ -113,6 +113,7 @@ class AgentDaemon:
             evaluate_fn=make_sdk_evaluate_fn(
                 model=self.config.supervisor.model,
                 thinking=self.config.supervisor.thinking,
+                prompt_override=self.config.supervisor.prompt_override,
             ),
             on_whisper=self._on_supervisor_whisper,
             on_escalation=self._on_supervisor_escalation,
@@ -269,6 +270,8 @@ class AgentDaemon:
                 self._status_query_event.set()
 
     def _build_system_prompt(self) -> str:
+        if self.agent.system_prompt:
+            return self.agent.system_prompt
         return (
             f"You are {self.agent.nick}, an AI agent on the agentirc IRC network.\n"
             f"You have IRC tools available via the irc skill. Use them to communicate.\n"

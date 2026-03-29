@@ -115,8 +115,10 @@ def _format_window(window: list[dict[str, Any]], task: str) -> str:
 def make_sdk_evaluate_fn(
     model: str = "claude-sonnet-4-6",
     thinking: str | None = None,
+    prompt_override: str = "",
 ) -> EvaluateFn:
     """Create an evaluate_fn that uses the Claude Agent SDK."""
+    system_prompt = prompt_override or _SUPERVISOR_SYSTEM_PROMPT
 
     async def evaluate(window: list[dict[str, Any]], task: str) -> SupervisorVerdict:
         prompt = _format_window(window, task)
@@ -124,7 +126,7 @@ def make_sdk_evaluate_fn(
         opts = ClaudeAgentOptions(
             model=model,
             max_turns=1,
-            system_prompt=_SUPERVISOR_SYSTEM_PROMPT,
+            system_prompt=system_prompt,
             tools=[],
         )
         if thinking:

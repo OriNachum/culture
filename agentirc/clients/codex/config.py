@@ -24,6 +24,7 @@ class SupervisorConfig:
     window_size: int = 20
     eval_interval: int = 5
     escalation_threshold: int = 3
+    prompt_override: str = ""
 
 
 @dataclass
@@ -45,6 +46,7 @@ class AgentConfig:
     directory: str = "."
     channels: list[str] = field(default_factory=lambda: ["#general"])
     model: str = "gpt-5.4"
+    system_prompt: str = ""
 
 
 @dataclass
@@ -54,6 +56,8 @@ class DaemonConfig:
     supervisor: SupervisorConfig = field(default_factory=SupervisorConfig)
     webhooks: WebhookConfig = field(default_factory=WebhookConfig)
     buffer_size: int = 500
+    sleep_start: str = "23:00"
+    sleep_end: str = "08:00"
     agents: list[AgentConfig] = field(default_factory=list)
 
     def get_agent(self, nick: str) -> AgentConfig | None:
@@ -82,6 +86,8 @@ def load_config(path: str | Path) -> DaemonConfig:
         supervisor=supervisor,
         webhooks=webhooks,
         buffer_size=raw.get("buffer_size", 500),
+        sleep_start=raw.get("sleep_start", "23:00"),
+        sleep_end=raw.get("sleep_end", "08:00"),
         agents=agents,
     )
 

@@ -25,6 +25,7 @@ class SupervisorConfig:
     window_size: int = 20
     eval_interval: int = 5
     escalation_threshold: int = 3
+    prompt_override: str = ""
 
 
 @dataclass
@@ -47,6 +48,7 @@ class AgentConfig:
     channels: list[str] = field(default_factory=lambda: ["#general"])
     model: str = "claude-opus-4-6"
     thinking: str = "medium"
+    system_prompt: str = ""
 
 
 @dataclass
