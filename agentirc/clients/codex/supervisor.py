@@ -51,6 +51,7 @@ class CodexSupervisor:
         window_size: int = 20,
         eval_interval: int = 5,
         escalation_threshold: int = 3,
+        prompt_override: str = "",
         on_whisper: Callable[[str, str], Awaitable[None]] | None = None,
         on_escalation: Callable[[str], Awaitable[None]] | None = None,
     ):
@@ -58,6 +59,7 @@ class CodexSupervisor:
         self.window_size = window_size
         self.eval_interval = eval_interval
         self.escalation_threshold = escalation_threshold
+        self.prompt_override = prompt_override
         self.on_whisper = on_whisper
         self.on_escalation = on_escalation
 
@@ -86,7 +88,8 @@ class CodexSupervisor:
     async def _evaluate(self) -> None:
         """Run codex exec to evaluate the agent's recent activity."""
         transcript = self._format_transcript()
-        prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
+        template = self.prompt_override or SUPERVISOR_PROMPT
+        prompt = template.format(transcript=transcript)
 
         # Isolate from host config (~/.codex/, XDG, etc.)
         isolated_home = tempfile.mkdtemp(prefix="agentirc-codex-sv-")

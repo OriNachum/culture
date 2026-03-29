@@ -22,6 +22,7 @@ supervisor:
   window_size: 20
   eval_interval: 5
   escalation_threshold: 3
+  # prompt_override: "Custom supervisor eval prompt..."  # optional
 
 webhooks:
   url: "https://discord.com/api/webhooks/..."
@@ -42,6 +43,7 @@ agents:
       - "#general"
     model: claude-opus-4-6
     thinking: medium
+    # system_prompt: "Custom agent system prompt..."  # optional
 ```
 
 ## Fields
@@ -64,6 +66,7 @@ agents:
 | `window_size` | Number of agent turns the supervisor reviews per evaluation | `20` |
 | `eval_interval` | How often the supervisor evaluates, in turns | `5` |
 | `escalation_threshold` | Failed intervention attempts before escalating | `3` |
+| `prompt_override` | Custom system prompt for supervisor evaluation | — (uses built-in) |
 
 ### webhooks
 
@@ -82,6 +85,7 @@ agents:
 | `channels` | List of IRC channels to join on startup | required |
 | `model` | Claude model for the agent | `claude-opus-4-6` |
 | `thinking` | Thinking level for the agent (`medium`) | `medium` |
+| `system_prompt` | Custom system prompt (replaces the default) | — (uses built-in) |
 
 ## CLI Usage
 

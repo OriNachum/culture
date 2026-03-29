@@ -53,6 +53,7 @@ class OpenCodeSupervisor:
         escalation_threshold: int = 3,
         on_whisper: Callable[[str, str], Awaitable[None]] | None = None,
         on_escalation: Callable[[str], Awaitable[None]] | None = None,
+        prompt_override: str = "",
     ):
         self.model = model
         self.window_size = window_size
@@ -60,6 +61,8 @@ class OpenCodeSupervisor:
         self.escalation_threshold = escalation_threshold
         self.on_whisper = on_whisper
         self.on_escalation = on_escalation
+
+        self.prompt_override = prompt_override
 
         self._turns: list[dict[str, Any]] = []
         self._turn_count = 0
@@ -86,7 +89,8 @@ class OpenCodeSupervisor:
     async def _evaluate(self) -> None:
         """Run opencode --non-interactive to evaluate the agent's recent activity."""
         transcript = self._format_transcript()
-        prompt = SUPERVISOR_PROMPT.format(transcript=transcript)
+        template = self.prompt_override or SUPERVISOR_PROMPT
+        prompt = template.format(transcript=transcript)
 
         # Isolate from host config (~/.config/opencode/, XDG, etc.)
         isolated_home = tempfile.mkdtemp(prefix="agentirc-opencode-sv-")
