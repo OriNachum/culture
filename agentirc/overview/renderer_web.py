@@ -5,7 +5,7 @@ import asyncio
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
-import html as html_mod
+import re
 
 import mistune
 
@@ -16,7 +16,7 @@ from .renderer_text import render_text
 
 def _create_markdown() -> mistune.Markdown:
     """Create a mistune renderer that escapes raw HTML in input."""
-    return mistune.create_markdown(escape=True)
+    return mistune.create_markdown(escape=True, plugins=['table'])
 
 
 def _load_css() -> str:
@@ -28,9 +28,10 @@ def _load_css() -> str:
 def _inject_status_badges(html: str) -> str:
     """Replace status text in table cells with styled badges."""
     for status in ("active", "idle", "paused", "remote"):
-        html = html.replace(
-            f"<td>{status}</td>",
-            f'<td><span class="status-{status}">{status}</span></td>',
+        html = re.sub(
+            rf"(<td>)\s*{status}\s*(</td>)",
+            rf'\1<span class="status-{status}">{status}</span>\2',
+            html,
         )
     return html
 

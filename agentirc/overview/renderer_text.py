@@ -154,7 +154,7 @@ def _render_agent_detail(mesh: MeshState, nick: str, message_limit: int) -> str:
     parts.append("| Field | Value |")
     parts.append("|-------|-------|")
     for field_name, value in rows:
-        parts.append(f"| {field_name} | {value} |")
+        parts.append(f"| {field_name} | {_escape_cell(value)} |")
 
     # Channels table
     parts.append("")
