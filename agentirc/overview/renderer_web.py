@@ -86,7 +86,18 @@ def _stop_existing_overview(pid_name: str) -> None:
     existing_pid = read_pid(pid_name)
     if existing_pid and is_process_alive(existing_pid):
         existing_port = read_port(pid_name)
-        os.kill(existing_pid, signal.SIGTERM)
+        try:
+            os.kill(existing_pid, signal.SIGTERM)
+        except (PermissionError, ProcessLookupError) as exc:
+            remove_pid(pid_name)
+            remove_port(pid_name)
+            port_msg = f", port {existing_port}" if existing_port else ""
+            print(
+                f"Warning: could not stop previous overview (PID {existing_pid}"
+                f"{port_msg}): {exc}",
+                flush=True,
+            )
+            return
         for _ in range(20):
             if not is_process_alive(existing_pid):
                 break
@@ -94,7 +105,7 @@ def _stop_existing_overview(pid_name: str) -> None:
         else:
             try:
                 os.kill(existing_pid, signal.SIGKILL)
-            except ProcessLookupError:
+            except (PermissionError, ProcessLookupError):
                 pass
         remove_pid(pid_name)
         remove_port(pid_name)
@@ -159,7 +170,9 @@ def serve_web(
 
     atexit.register(_cleanup)
     if threading.current_thread() is threading.main_thread():
-        signal.signal(signal.SIGTERM, lambda _sig, _frame: httpd.shutdown())
+        def _handle_term(_sig, _frame):
+            threading.Thread(target=httpd.shutdown, daemon=True).start()
+        signal.signal(signal.SIGTERM, _handle_term)
 
     print(f"Overview dashboard: http://localhost:{actual_port}", flush=True)
     print("Press Ctrl+C to stop.", flush=True)

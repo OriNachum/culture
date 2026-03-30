@@ -48,6 +48,20 @@ memberships with roles, and cross-channel recent activity.
 styled HTML with the anthropic cream theme. Auto-refreshes at the interval
 set by `--refresh` (default: 5 seconds).
 
+### Instance Management
+
+Each overview server registers itself with a PID and port file in
+`~/.agentirc/pids/` (e.g., `overview-spark.pid`, `overview-spark.port`).
+
+- **One per server**: Starting a new overview for the same IRC server
+  auto-kills the previous instance via SIGTERM (with SIGKILL fallback).
+- **Multiple servers**: Different IRC servers can each have their own
+  overview site running simultaneously (keyed by `server_name`).
+- **Graceful shutdown**: SIGTERM and Ctrl+C both trigger clean shutdown
+  with PID/port file removal.
+- **Background visibility**: The dashboard URL is flushed to stdout
+  immediately, so it appears even when the process runs in the background.
+
 ## Data Sources
 
 - **IRC Observer**: Ephemeral connection queries LIST, NAMES, WHO, HISTORY

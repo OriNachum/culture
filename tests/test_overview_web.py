@@ -1,6 +1,5 @@
 """Tests for overview web renderer."""
 import os
-import signal
 import threading
 import time
 
@@ -117,25 +116,30 @@ def test_serve_web_writes_and_cleans_pid_port(tmp_path, monkeypatch):
 
 
 def test_stop_existing_overview_kills_previous(tmp_path, monkeypatch):
-    """_stop_existing_overview sends SIGTERM to an existing instance."""
+    """_stop_existing_overview sends SIGTERM to a live previous instance."""
     monkeypatch.setattr(pidfile, "PID_DIR", str(tmp_path))
 
     pid_name = "overview-testserver"
-    # Write fake PID/port files
     (tmp_path / f"{pid_name}.pid").write_text("99999")
     (tmp_path / f"{pid_name}.port").write_text("12345")
 
+    # Simulate: process alive on first check, dead after SIGTERM
+    alive_calls = {"count": 0}
+
+    def _fake_alive(pid):
+        alive_calls["count"] += 1
+        return alive_calls["count"] == 1  # alive first, dead after
+
     killed_pids = []
-    monkeypatch.setattr(pidfile, "is_process_alive", lambda pid: False)
     monkeypatch.setattr(os, "kill", lambda pid, sig: killed_pids.append((pid, sig)))
 
-    # Patch is_process_alive in the renderer_web module too
     import agentirc.overview.renderer_web as rweb
-    monkeypatch.setattr(rweb, "is_process_alive", lambda pid: False)
+    monkeypatch.setattr(rweb, "is_process_alive", _fake_alive)
 
     _stop_existing_overview(pid_name)
 
-    # Files should be cleaned up (stale PID — process not alive)
+    import signal
+    assert (99999, signal.SIGTERM) in killed_pids, "SIGTERM should be sent"
     assert not (tmp_path / f"{pid_name}.pid").exists()
     assert not (tmp_path / f"{pid_name}.port").exists()
 
