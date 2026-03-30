@@ -3,23 +3,29 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 PID_DIR = os.path.expanduser("~/.agentirc/pids")
+
+
+def _safe_name(name: str) -> str:
+    """Sanitize a daemon name to prevent path traversal."""
+    return re.sub(r"[^a-zA-Z0-9._-]", "_", Path(name).name)
 
 
 def write_pid(name: str, pid: int) -> Path:
     """Write a PID file for the named daemon. Creates the directory if needed."""
     pid_dir = Path(PID_DIR)
     pid_dir.mkdir(parents=True, exist_ok=True)
-    pid_path = pid_dir / f"{name}.pid"
+    pid_path = pid_dir / f"{_safe_name(name)}.pid"
     pid_path.write_text(str(pid))
     return pid_path
 
 
 def read_pid(name: str) -> int | None:
     """Read the PID for the named daemon. Returns None if file is missing."""
-    pid_path = Path(PID_DIR) / f"{name}.pid"
+    pid_path = Path(PID_DIR) / f"{_safe_name(name)}.pid"
     if not pid_path.exists():
         return None
     try:
@@ -30,9 +36,38 @@ def read_pid(name: str) -> int | None:
 
 def remove_pid(name: str) -> None:
     """Remove the PID file for the named daemon if it exists."""
-    pid_path = Path(PID_DIR) / f"{name}.pid"
+    pid_path = Path(PID_DIR) / f"{_safe_name(name)}.pid"
     try:
         pid_path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def write_port(name: str, port: int) -> Path:
+    """Write a port file for the named daemon. Creates the directory if needed."""
+    pid_dir = Path(PID_DIR)
+    pid_dir.mkdir(parents=True, exist_ok=True)
+    port_path = pid_dir / f"{_safe_name(name)}.port"
+    port_path.write_text(str(port))
+    return port_path
+
+
+def read_port(name: str) -> int | None:
+    """Read the port for the named daemon. Returns None if file is missing."""
+    port_path = Path(PID_DIR) / f"{_safe_name(name)}.port"
+    if not port_path.exists():
+        return None
+    try:
+        return int(port_path.read_text().strip())
+    except (ValueError, OSError):
+        return None
+
+
+def remove_port(name: str) -> None:
+    """Remove the port file for the named daemon if it exists."""
+    port_path = Path(PID_DIR) / f"{_safe_name(name)}.port"
+    try:
+        port_path.unlink()
     except FileNotFoundError:
         pass
 
