@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.14.1] - 2026-03-30
+
+
+### Fixed
+
+- Web dashboard table rendering (enable mistune table plugin)
+- Status badge injection for indented td tags
+- Metadata table cell escaping in agent detail view
+
 ## [0.14.0] - 2026-03-30
 
 

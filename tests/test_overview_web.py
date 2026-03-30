@@ -48,3 +48,11 @@ def test_render_html_has_auto_refresh():
     mesh = _make_fixture()
     html = render_html(mesh, message_limit=4, refresh_interval=5)
     assert 'http-equiv="refresh"' in html or "refresh" in html.lower()
+
+
+def test_render_html_has_table_elements():
+    mesh = _make_fixture()
+    html = render_html(mesh, message_limit=4)
+    assert "<table" in html
+    assert "<th>" in html or "<th " in html
+    assert "status-active" in html
