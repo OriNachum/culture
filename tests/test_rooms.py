@@ -480,3 +480,253 @@ async def test_no_invite_if_already_in_room(server, make_client):
     assert "ROOMETASET" in joined
     invite_lines = [l for l in lines if "ROOMINVITE" in l]
     assert len(invite_lines) == 0
+
+
+@pytest.mark.asyncio
+async def test_roominvite_sends_context(server, make_client):
+    """ROOMINVITE delivers room metadata to the target agent."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    bob = await make_client(nick="testserv-bob", user="bob")
+
+    await alice.send(
+        "ROOMCREATE #pyhelp :purpose=Python help;tags=python;instructions=Be helpful"
+    )
+    await alice.recv_all(timeout=1.0)
+
+    await alice.send("ROOMINVITE #pyhelp testserv-bob")
+    await alice.recv_all(timeout=0.5)
+
+    lines = await bob.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "ROOMINVITE" in joined
+    assert "#pyhelp" in joined
+    assert "Python help" in joined
+    assert "testserv-alice" in joined  # requestor included
+
+
+@pytest.mark.asyncio
+async def test_roominvite_nonexistent_target(server, make_client):
+    """ROOMINVITE to nonexistent nick returns error."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("ROOMCREATE #pyhelp :purpose=Test")
+    await alice.recv_all(timeout=1.0)
+
+    await alice.send("ROOMINVITE #pyhelp testserv-nobody")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "401" in joined  # ERR_NOSUCHNICK
+
+
+@pytest.mark.asyncio
+async def test_roominvite_nonexistent_room(server, make_client):
+    """ROOMINVITE for nonexistent room returns error."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("ROOMINVITE #noroom testserv-alice")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "403" in joined  # ERR_NOSUCHCHANNEL
+
+
+@pytest.mark.asyncio
+async def test_roominvite_missing_params(server, make_client):
+    """ROOMINVITE with missing params returns error."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("ROOMINVITE #pyhelp")
+    resp = await alice.recv()
+    assert "461" in resp
+
+
+@pytest.mark.asyncio
+async def test_roomkick_owner_removes_member(server, make_client):
+    """Room owner can force-remove a member."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    bob = await make_client(nick="testserv-bob", user="bob")
+
+    await alice.send("ROOMCREATE #pyhelp :purpose=Test")
+    await alice.recv_all(timeout=1.0)
+
+    await bob.send("JOIN #pyhelp")
+    await bob.recv_all(timeout=1.0)
+    await alice.recv_all(timeout=0.3)
+
+    await alice.send("ROOMKICK #pyhelp testserv-bob")
+    await alice.recv_all(timeout=1.0)
+
+    lines = await bob.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "PART" in joined or "KICK" in joined
+
+    channel = server.channels.get("#pyhelp")
+    bob_client = server.clients["testserv-bob"]
+    assert bob_client not in channel.members
+
+
+@pytest.mark.asyncio
+async def test_roomkick_non_owner_denied(server, make_client):
+    """Non-owner cannot ROOMKICK."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    bob = await make_client(nick="testserv-bob", user="bob")
+    charlie = await make_client(nick="testserv-charlie", user="charlie")
+
+    await alice.send("ROOMCREATE #pyhelp :purpose=Test")
+    await alice.recv_all(timeout=1.0)
+
+    await bob.send("JOIN #pyhelp")
+    await bob.recv_all(timeout=1.0)
+    await charlie.send("JOIN #pyhelp")
+    await charlie.recv_all(timeout=1.0)
+    await alice.recv_all(timeout=0.5)
+
+    await bob.send("ROOMKICK #pyhelp testserv-charlie")
+    lines = await bob.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "permission" in joined.lower() or "NOTICE" in joined
+
+    charlie_client = server.clients["testserv-charlie"]
+    channel = server.channels["#pyhelp"]
+    assert charlie_client in channel.members
+
+
+@pytest.mark.asyncio
+async def test_roomkick_missing_params(server, make_client):
+    """ROOMKICK with missing params returns error."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("ROOMKICK #pyhelp")
+    resp = await alice.recv()
+    assert "461" in resp
+
+
+@pytest.mark.asyncio
+async def test_roomarchive_renames_and_preserves(server, make_client):
+    """ROOMARCHIVE renames the room and preserves metadata."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    bob = await make_client(nick="testserv-bob", user="bob")
+
+    await alice.send("ROOMCREATE #pyhelp :purpose=Help;tags=python")
+    await alice.recv_all(timeout=1.0)
+
+    room_id = server.channels["#pyhelp"].room_id
+
+    await bob.send("JOIN #pyhelp")
+    await bob.recv_all(timeout=1.0)
+    await alice.recv_all(timeout=0.3)
+
+    await alice.send("ROOMARCHIVE #pyhelp")
+    await alice.recv_all(timeout=1.0)
+
+    # Bob should be parted
+    lines = await bob.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "archived" in joined.lower()
+
+    # Original name freed
+    assert "#pyhelp" not in server.channels
+
+    # Archived room exists with new name
+    assert "#pyhelp-archived" in server.channels
+    archived = server.channels["#pyhelp-archived"]
+    assert archived.archived is True
+    assert archived.room_id == room_id
+    assert archived.purpose == "Help"
+    assert archived.tags == ["python"]
+
+
+@pytest.mark.asyncio
+async def test_roomarchive_increments_suffix(server, make_client):
+    """Multiple archives of same-named room get incrementing suffixes."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+
+    # First room + archive
+    await alice.send("ROOMCREATE #pyhelp :purpose=First")
+    await alice.recv_all(timeout=1.0)
+    await alice.send("ROOMARCHIVE #pyhelp")
+    await alice.recv_all(timeout=1.0)
+
+    # Second room + archive
+    await alice.send("ROOMCREATE #pyhelp :purpose=Second")
+    await alice.recv_all(timeout=1.0)
+    await alice.send("ROOMARCHIVE #pyhelp")
+    await alice.recv_all(timeout=1.0)
+
+    assert "#pyhelp-archived" in server.channels
+    assert "#pyhelp-archived#2" in server.channels
+    assert server.channels["#pyhelp-archived"].purpose == "First"
+    assert server.channels["#pyhelp-archived#2"].purpose == "Second"
+
+
+@pytest.mark.asyncio
+async def test_roomarchive_non_owner_denied(server, make_client):
+    """Non-owner cannot archive."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    bob = await make_client(nick="testserv-bob", user="bob")
+
+    await alice.send("ROOMCREATE #pyhelp :purpose=Test")
+    await alice.recv_all(timeout=1.0)
+    await bob.send("JOIN #pyhelp")
+    await bob.recv_all(timeout=1.0)
+    await alice.recv_all(timeout=0.3)
+
+    await bob.send("ROOMARCHIVE #pyhelp")
+    lines = await bob.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "permission" in joined.lower()
+
+    assert "#pyhelp" in server.channels
+    assert server.channels["#pyhelp"].archived is False
+
+
+@pytest.mark.asyncio
+async def test_roomarchive_frees_name_for_reuse(server, make_client):
+    """After archiving, a new room can use the same name with a new ID."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+
+    await alice.send("ROOMCREATE #pyhelp :purpose=Original")
+    await alice.recv_all(timeout=1.0)
+    original_id = server.channels["#pyhelp"].room_id
+
+    await alice.send("ROOMARCHIVE #pyhelp")
+    await alice.recv_all(timeout=1.0)
+
+    await alice.send("ROOMCREATE #pyhelp :purpose=New version")
+    await alice.recv_all(timeout=1.0)
+
+    assert server.channels["#pyhelp"].room_id != original_id
+    assert server.channels["#pyhelp"].purpose == "New version"
+
+
+@pytest.mark.asyncio
+async def test_persistent_room_notifies_owner_when_empty(server, make_client):
+    """When a persistent room empties, the owner gets an archive suggestion."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+
+    await alice.send("ROOMCREATE #pyhelp :purpose=Test;persistent=true")
+    await alice.recv_all(timeout=1.0)
+
+    # Alice leaves
+    await alice.send("PART #pyhelp")
+    await asyncio.sleep(0.1)
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+
+    # Owner should get a notice about the empty room
+    assert "empty" in joined.lower()
+    assert "#pyhelp" in joined
+
+    # Room should still exist (persistent)
+    assert "#pyhelp" in server.channels
+
+
+def test_agent_config_tags_field():
+    """AgentConfig should have tags field."""
+    from agentirc.clients.claude.config import AgentConfig
+
+    config = AgentConfig(nick="spark-claude", channels=["#general"], tags=["python", "code-review"])
+    assert config.tags == ["python", "code-review"]
+
+
+def test_agent_config_tags_default_empty():
+    """AgentConfig tags defaults to empty list."""
+    from agentirc.clients.claude.config import AgentConfig
+
+    config = AgentConfig(nick="spark-claude")
+    assert config.tags == []

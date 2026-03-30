@@ -34,6 +34,7 @@ class IRCd:
 
     async def start(self) -> None:
         await self._register_default_skills()
+        self._restore_persistent_rooms()
         self._server = await asyncio.start_server(
             self._handle_connection,
             self.config.host,
@@ -203,6 +204,29 @@ class IRCd:
                         del self.channels[channel.name]
             rc.channels.clear()
             del self.remote_clients[nick]
+
+    def _restore_persistent_rooms(self) -> None:
+        """Reload persistent rooms from disk on startup."""
+        if not self.config.data_dir:
+            return
+        from agentirc.server.room_store import RoomStore
+
+        store = RoomStore(self.config.data_dir)
+        for data in store.load_all():
+            name = data["name"]
+            channel = self.get_or_create_channel(name)
+            channel.room_id = data["room_id"]
+            channel.creator = data.get("creator")
+            channel.owner = data.get("owner")
+            channel.purpose = data.get("purpose")
+            channel.instructions = data.get("instructions")
+            channel.tags = data.get("tags", [])
+            channel.persistent = data.get("persistent", False)
+            channel.agent_limit = data.get("agent_limit")
+            channel.extra_meta = data.get("extra_meta", {})
+            channel.archived = data.get("archived", False)
+            channel.created_at = data.get("created_at")
+            channel.topic = data.get("topic")
 
     def get_or_create_channel(self, name: str) -> Channel:
         if name not in self.channels:

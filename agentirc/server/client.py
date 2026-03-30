@@ -290,7 +290,7 @@ class Client:
         channel.remove(self)
         self.channels.discard(channel)
 
-        if not channel.members:
+        if not channel.members and not channel.persistent:
             del self.server.channels[channel_name]
 
     async def _handle_topic(self, msg: Message) -> None:
