@@ -103,10 +103,196 @@ class RoomsSkill(Skill):
         ))
 
     async def _handle_roommeta(self, client: Client, msg: Message) -> None:
-        pass  # Task 4
+        if not msg.params:
+            await client.send_numeric(
+                replies.ERR_NEEDMOREPARAMS, "ROOMMETA", "Not enough parameters"
+            )
+            return
+
+        channel_name = msg.params[0]
+        channel = self.server.channels.get(channel_name)
+
+        if not channel:
+            await client.send_numeric(
+                replies.ERR_NOSUCHCHANNEL, channel_name, "No such channel"
+            )
+            return
+
+        if not channel.is_managed:
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="NOTICE",
+                params=[client.nick, f"{channel_name} is not a managed room"],
+            ))
+            return
+
+        # Build full metadata dict for easy access
+        def _channel_meta(ch) -> dict:
+            return {
+                "room_id": ch.room_id or "",
+                "creator": ch.creator or "",
+                "owner": ch.owner or "",
+                "purpose": ch.purpose or "",
+                "instructions": ch.instructions or "",
+                "tags": ",".join(ch.tags),
+                "persistent": str(ch.persistent).lower(),
+                "agent_limit": str(ch.agent_limit) if ch.agent_limit is not None else "",
+                "archived": str(ch.archived).lower(),
+                "created_at": str(ch.created_at) if ch.created_at is not None else "",
+            }
+
+        READ_ONLY_KEYS = {"room_id", "creator", "archived", "created_at"}
+
+        if len(msg.params) == 1:
+            # Query all metadata
+            meta = _channel_meta(channel)
+            for key, value in meta.items():
+                await client.send(Message(
+                    prefix=self.server.config.name,
+                    command="ROOMMETA",
+                    params=[channel_name, key, value],
+                ))
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="ROOMETAEND",
+                params=[channel_name, "End of ROOMMETA"],
+            ))
+
+        elif len(msg.params) == 2:
+            # Query single key
+            key = msg.params[1]
+            meta = _channel_meta(channel)
+            value = meta.get(key, channel.extra_meta.get(key, ""))
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="ROOMMETA",
+                params=[channel_name, key, value],
+            ))
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="ROOMETAEND",
+                params=[channel_name, "End of ROOMMETA"],
+            ))
+
+        else:
+            # Update a field — owner or operator only
+            key = msg.params[1]
+            value = msg.params[2]
+
+            is_owner = channel.owner == client.nick
+            is_operator = channel.is_operator(client)
+            if not is_owner and not is_operator:
+                await client.send_numeric(
+                    replies.ERR_CHANOPRIVSNEEDED,
+                    channel_name,
+                    "You do not have permission to update room metadata",
+                )
+                return
+
+            if key in READ_ONLY_KEYS:
+                await client.send(Message(
+                    prefix=self.server.config.name,
+                    command="NOTICE",
+                    params=[client.nick, f"{key} is read-only"],
+                ))
+                return
+
+            # Apply the update
+            if key == "purpose":
+                channel.purpose = value
+            elif key == "instructions":
+                channel.instructions = value
+            elif key == "tags":
+                channel.tags = [t.strip() for t in value.split(",") if t.strip()]
+                await self._on_room_tags_changed(channel)
+            elif key == "owner":
+                channel.owner = value
+            elif key == "persistent":
+                channel.persistent = value.lower() == "true"
+            elif key == "agent_limit":
+                try:
+                    channel.agent_limit = int(value)
+                except ValueError:
+                    await client.send(Message(
+                        prefix=self.server.config.name,
+                        command="NOTICE",
+                        params=[client.nick, f"Invalid value for agent_limit: {value}"],
+                    ))
+                    return
+            else:
+                channel.extra_meta[key] = value
+
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="ROOMETASET",
+                params=[channel_name, key, value, "Updated"],
+            ))
+
+    async def _on_room_tags_changed(self, channel) -> None:
+        """Placeholder for Task 6: tag-based event engine hook."""
+        pass
 
     async def _handle_tags(self, client: Client, msg: Message) -> None:
-        pass  # Task 5
+        if not msg.params:
+            await client.send_numeric(
+                replies.ERR_NEEDMOREPARAMS, "TAGS", "Not enough parameters"
+            )
+            return
+
+        nick = msg.params[0]
+
+        if len(msg.params) == 1:
+            # Query tags for nick
+            target = self.server.clients.get(nick)
+            if not target:
+                await client.send_numeric(
+                    replies.ERR_NOSUCHNICK, nick, "No such nick"
+                )
+                return
+
+            tags_str = ",".join(target.tags)
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="TAGS",
+                params=[nick, tags_str],
+            ))
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="TAGSEND",
+                params=[nick, "End of TAGS"],
+            ))
+
+        else:
+            # Set tags — self only (unless server operator)
+            tags_value = msg.params[1]
+
+            if nick != client.nick:
+                await client.send(Message(
+                    prefix=self.server.config.name,
+                    command="NOTICE",
+                    params=[client.nick, "You do not have permission to set tags for other users"],
+                ))
+                return
+
+            target = self.server.clients.get(nick)
+            if not target:
+                await client.send_numeric(
+                    replies.ERR_NOSUCHNICK, nick, "No such nick"
+                )
+                return
+
+            target.tags = [t.strip() for t in tags_value.split(",") if t.strip()]
+            await self._on_agent_tags_changed(target)
+
+            await client.send(Message(
+                prefix=self.server.config.name,
+                command="TAGSSET",
+                params=[nick, tags_value, "Tags updated"],
+            ))
+
+    async def _on_agent_tags_changed(self, client: Client) -> None:
+        """Placeholder for Task 6: tag-based event engine hook."""
+        pass
 
     async def _handle_roominvite(self, client: Client, msg: Message) -> None:
         pass  # Task 7

@@ -171,3 +171,186 @@ async def test_client_tags_default_empty(server, make_client):
     alice = await make_client(nick="testserv-alice", user="alice")
     client = server.clients["testserv-alice"]
     assert client.tags == []
+
+
+@pytest.mark.asyncio
+async def test_roommeta_query_all(server, make_client):
+    """ROOMMETA with just channel name returns all metadata."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send(
+        "ROOMCREATE #pyhelp :purpose=Python help;tags=python,code-help;persistent=true"
+    )
+    await alice.recv_all(timeout=1.0)
+
+    await alice.send("ROOMMETA #pyhelp")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+
+    assert "room_id" in joined
+    assert "purpose" in joined
+    assert "Python help" in joined
+    assert "tags" in joined
+    assert "python" in joined
+    assert "ROOMETAEND" in joined
+
+
+@pytest.mark.asyncio
+async def test_roommeta_query_single_key(server, make_client):
+    """ROOMMETA with key returns just that field."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("ROOMCREATE #pyhelp :purpose=Python help;tags=python")
+    await alice.recv_all(timeout=1.0)
+
+    await alice.send("ROOMMETA #pyhelp tags")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+
+    assert "tags" in joined
+    assert "python" in joined
+
+
+@pytest.mark.asyncio
+async def test_roommeta_update_tags(server, make_client):
+    """ROOMMETA with key and value updates the field (owner can write)."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("ROOMCREATE #pyhelp :purpose=Python help;tags=python")
+    await alice.recv_all(timeout=1.0)
+
+    await alice.send("ROOMMETA #pyhelp tags python,devops,code-help")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "updated" in joined.lower() or "ROOMETASET" in joined
+
+    channel = server.channels["#pyhelp"]
+    assert channel.tags == ["python", "devops", "code-help"]
+
+
+@pytest.mark.asyncio
+async def test_roommeta_update_owner(server, make_client):
+    """Room owner can be transferred via ROOMMETA."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    bob = await make_client(nick="testserv-bob", user="bob")
+    await alice.send("ROOMCREATE #pyhelp :purpose=Test")
+    await alice.recv_all(timeout=1.0)
+
+    await alice.send("ROOMMETA #pyhelp owner testserv-bob")
+    await alice.recv_all(timeout=1.0)
+
+    channel = server.channels["#pyhelp"]
+    assert channel.owner == "testserv-bob"
+
+
+@pytest.mark.asyncio
+async def test_roommeta_non_owner_cannot_write(server, make_client):
+    """Non-owner/non-operator cannot update room metadata."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    bob = await make_client(nick="testserv-bob", user="bob")
+    await alice.send("ROOMCREATE #pyhelp :purpose=Test;tags=python")
+    await alice.recv_all(timeout=1.0)
+
+    await bob.send("JOIN #pyhelp")
+    await bob.recv_all(timeout=1.0)
+    await alice.recv_all(timeout=0.3)
+
+    await bob.send("ROOMMETA #pyhelp tags hacked")
+    lines = await bob.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "permission" in joined.lower() or "482" in joined
+
+    channel = server.channels["#pyhelp"]
+    assert channel.tags == ["python"]
+
+
+@pytest.mark.asyncio
+async def test_roommeta_nonexistent_channel(server, make_client):
+    """ROOMMETA on nonexistent channel returns error."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("ROOMMETA #noroom")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "403" in joined  # ERR_NOSUCHCHANNEL
+
+
+@pytest.mark.asyncio
+async def test_roommeta_on_plain_channel(server, make_client):
+    """ROOMMETA on non-managed channel returns not-managed notice."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("JOIN #plain")
+    await alice.recv_all(timeout=1.0)
+
+    await alice.send("ROOMMETA #plain")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "not a managed room" in joined.lower() or "NOTICE" in joined
+
+
+@pytest.mark.asyncio
+async def test_tags_set_own(server, make_client):
+    """Agent can set its own tags."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("TAGS testserv-alice python,code-review,agentirc")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "TAGSSET" in joined
+
+    client = server.clients["testserv-alice"]
+    assert client.tags == ["python", "code-review", "agentirc"]
+
+
+@pytest.mark.asyncio
+async def test_tags_query_own(server, make_client):
+    """Agent can query its own tags."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    client = server.clients["testserv-alice"]
+    client.tags = ["python", "devops"]
+
+    await alice.send("TAGS testserv-alice")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "python,devops" in joined
+
+
+@pytest.mark.asyncio
+async def test_tags_query_other(server, make_client):
+    """Anyone can query another agent's tags."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    bob = await make_client(nick="testserv-bob", user="bob")
+    server.clients["testserv-bob"].tags = ["rust", "infra"]
+
+    await alice.send("TAGS testserv-bob")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "rust,infra" in joined
+
+
+@pytest.mark.asyncio
+async def test_tags_no_params(server, make_client):
+    """TAGS with no params returns error."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("TAGS")
+    resp = await alice.recv()
+    assert "461" in resp
+
+
+@pytest.mark.asyncio
+async def test_tags_nonexistent_nick(server, make_client):
+    """TAGS on nonexistent nick returns error."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    await alice.send("TAGS testserv-nobody")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "401" in joined  # ERR_NOSUCHNICK
+
+
+@pytest.mark.asyncio
+async def test_tags_cannot_set_others(server, make_client):
+    """Non-operator cannot set another agent's tags."""
+    alice = await make_client(nick="testserv-alice", user="alice")
+    bob = await make_client(nick="testserv-bob", user="bob")
+
+    await alice.send("TAGS testserv-bob python")
+    lines = await alice.recv_all(timeout=1.0)
+    joined = " ".join(lines)
+    assert "permission" in joined.lower() or "NOTICE" in joined
+
+    assert server.clients["testserv-bob"].tags == []
