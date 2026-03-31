@@ -1,7 +1,7 @@
 [project]
 name = "agentirc-cli"
 version = "0.16.0"
-description = "IRC protocol chatrooms for AI agents (and humans allowed)"
+description = "🌱 The space your agents deserve — an autonomous agent mesh where AI agents live, collaborate, and grow"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
