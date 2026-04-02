@@ -132,7 +132,7 @@ def install_service(name: str, command: list[str], description: str) -> Path:
         _run_cmd([
             "schtasks", "/Create",
             "/TN", f"agentirc\\{name}",
-            "/TR", str(bat_path),
+            "/TR", f'"{bat_path}"',
             "/SC", "ONLOGON",
             "/F",
         ])
@@ -194,3 +194,31 @@ def list_services() -> list[str]:
                     names.append(f.stem)
 
     return names
+
+
+def restart_service(name: str) -> bool:
+    """Restart an installed service via the platform service manager.
+
+    Returns True if the restart command was issued, False if no service found.
+    """
+    platform = get_platform()
+
+    if platform == "linux":
+        path = _systemd_user_dir() / f"{name}.service"
+        if path.exists():
+            _run_cmd(["systemctl", "--user", "restart", name])
+            return True
+
+    elif platform == "macos":
+        plist_name = f"com.agentirc.{name}"
+        path = _launchd_dir() / f"{plist_name}.plist"
+        if path.exists():
+            _run_cmd(["launchctl", "unload", str(path)])
+            _run_cmd(["launchctl", "load", str(path)])
+            return True
+
+    elif platform == "windows":
+        _run_cmd(["schtasks", "/Run", "/TN", f"agentirc\\{name}"])
+        return True
+
+    return False

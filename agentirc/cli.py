@@ -1473,15 +1473,20 @@ def _cmd_update(args: argparse.Namespace) -> None:
         agent_cmd = [agentirc_bin, "start", full_nick, "--foreground", "--config", config_path]
         install_service(f"agentirc-agent-{full_nick}", agent_cmd, f"agentirc agent {full_nick}")
 
-    # Start server
-    print(f"  Starting server {server_name}...")
-    server_start_args = [
-        agentirc_bin, "server", "start",
-        "--name", server_name,
-        "--host", mesh.server.host,
-        "--port", str(mesh.server.port),
-    ] + link_args
-    subprocess.run(server_start_args, check=False)
+    # Restart services via platform service manager
+    from agentirc.persistence import restart_service
+
+    server_svc = f"agentirc-server-{server_name}"
+    print(f"  Restarting {server_svc}...")
+    if not restart_service(server_svc):
+        # Fallback: start via CLI if no service file installed
+        print(f"  No service file found, starting via CLI...")
+        subprocess.run([
+            agentirc_bin, "server", "start",
+            "--name", server_name,
+            "--host", mesh.server.host,
+            "--port", str(mesh.server.port),
+        ] + link_args, check=False)
 
     # Wait for server to be ready
     import socket as _socket
@@ -1492,15 +1497,17 @@ def _cmd_update(args: argparse.Namespace) -> None:
         except (ConnectionRefusedError, OSError):
             time.sleep(0.1)
 
-    # Start agents
     for agent in mesh.agents:
         full_nick = f"{server_name}-{agent.nick}"
-        workdir = os.path.expanduser(agent.workdir)
-        config_path = os.path.join(workdir, ".agentirc", "agents.yaml")
-        print(f"  Starting {full_nick}...")
-        subprocess.run(
-            [agentirc_bin, "start", full_nick, "--config", config_path],
-            check=False,
-        )
+        agent_svc = f"agentirc-agent-{full_nick}"
+        print(f"  Restarting {agent_svc}...")
+        if not restart_service(agent_svc):
+            # Fallback: start via CLI
+            workdir = os.path.expanduser(agent.workdir)
+            config_path = os.path.join(workdir, ".agentirc", "agents.yaml")
+            subprocess.run(
+                [agentirc_bin, "start", full_nick, "--config", config_path],
+                check=False,
+            )
 
     print(f"\nUpdate complete. All services restarted.")

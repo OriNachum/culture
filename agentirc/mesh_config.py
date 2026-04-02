@@ -57,9 +57,13 @@ def load_mesh_config(path: str | Path = DEFAULT_MESH_PATH) -> MeshConfig:
     with open(path) as f:
         raw = yaml.safe_load(f) or {}
 
-    server_raw = raw.get("server", {})
-    links = [MeshLinkConfig(**lc) for lc in server_raw.pop("links", [])]
-    server = MeshServerConfig(**server_raw, links=links)
+    server_raw = raw.get("server", {}) or {}
+    links_raw = server_raw.get("links", []) or []
+    links = [MeshLinkConfig(**lc) for lc in links_raw]
+    server_kwargs = {k: v for k, v in server_raw.items() if k != "links"}
+    if "name" not in server_kwargs:
+        server_kwargs["name"] = "agentirc"
+    server = MeshServerConfig(**server_kwargs, links=links)
 
     agents = [MeshAgentConfig(**a) for a in raw.get("agents", [])]
 
