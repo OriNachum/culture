@@ -177,6 +177,11 @@ class IRCd:
                         logger.warning(
                             "Handshake with %s did not complete, retrying", peer_name
                         )
+                        # Close the stale link to avoid leaked connections
+                        try:
+                            link.writer.close()
+                        except Exception:
+                            pass
                 except Exception:
                     logger.debug(
                         "Retry connect to %s failed, next in %.0fs",
