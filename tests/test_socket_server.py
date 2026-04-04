@@ -1,18 +1,20 @@
 import asyncio
-import json
 import os
 import tempfile
+
 import pytest
 
-from agentirc.clients.claude.socket_server import SocketServer
-from agentirc.clients.claude.ipc import encode_message, decode_message, make_request
+from culture.clients.claude.ipc import decode_message, encode_message, make_request
+from culture.clients.claude.socket_server import SocketServer
 
 
 @pytest.mark.asyncio
 async def test_socket_server_accepts_connection():
     sock_path = os.path.join(tempfile.mkdtemp(), "test.sock")
+
     async def handler(msg):
         return {"type": "response", "id": msg["id"], "ok": True}
+
     srv = SocketServer(sock_path, handler)
     await srv.start()
     try:
@@ -34,8 +36,10 @@ async def test_socket_server_accepts_connection():
 @pytest.mark.asyncio
 async def test_socket_server_sends_whisper():
     sock_path = os.path.join(tempfile.mkdtemp(), "test.sock")
+
     async def handler(msg):
         return {"type": "response", "id": msg["id"], "ok": True}
+
     srv = SocketServer(sock_path, handler)
     await srv.start()
     try:
@@ -56,8 +60,10 @@ async def test_socket_server_sends_whisper():
 @pytest.mark.asyncio
 async def test_socket_permissions():
     sock_path = os.path.join(tempfile.mkdtemp(), "test.sock")
+
     async def handler(msg):
         return {"type": "response", "id": msg["id"], "ok": True}
+
     srv = SocketServer(sock_path, handler)
     await srv.start()
     try:

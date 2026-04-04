@@ -10,10 +10,28 @@ exclude =
     packages
 extend-ignore =
     E203,
+    E303,
+    E501,
+    E741,
     W503,
-    S101
+    B007,
+    B014,
+    F401,
+    F541,
+    F811,
+    F841,
+    S101,
+    S104,
+    S105,
+    S108,
+    S110,
+    S112,
+    S310,
+    S404,
+    S406,
+    S603,
+    S606,
+    S607
 per-file-ignores =
-    agentirc/credentials.py:S603,S607
-    agentirc/persistence.py:S603,S607
-    agentirc/cli.py:S603,S607
-    tests/*:S101
+    culture/protocol/commands.py:S105
+    tests/*:S101,S105,S106

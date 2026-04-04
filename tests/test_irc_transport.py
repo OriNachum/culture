@@ -1,16 +1,22 @@
 import asyncio
-import pytest
 import re
-from agentirc.clients.claude.irc_transport import IRCTransport
-from agentirc.clients.claude.message_buffer import MessageBuffer
+
+import pytest
+
+from culture.clients.claude.irc_transport import IRCTransport
+from culture.clients.claude.message_buffer import MessageBuffer
 
 
 @pytest.mark.asyncio
 async def test_connect_and_register(server):
     buf = MessageBuffer()
     transport = IRCTransport(
-        host="127.0.0.1", port=server.config.port,
-        nick="testserv-bot", user="bot", channels=["#general"], buffer=buf,
+        host="127.0.0.1",
+        port=server.config.port,
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general"],
+        buffer=buf,
     )
     await transport.connect()
     try:
@@ -25,8 +31,12 @@ async def test_connect_and_register(server):
 async def test_joins_channels(server):
     buf = MessageBuffer()
     transport = IRCTransport(
-        host="127.0.0.1", port=server.config.port,
-        nick="testserv-bot", user="bot", channels=["#general", "#dev"], buffer=buf,
+        host="127.0.0.1",
+        port=server.config.port,
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general", "#dev"],
+        buffer=buf,
     )
     await transport.connect()
     try:
@@ -41,8 +51,12 @@ async def test_joins_channels(server):
 async def test_buffers_incoming_messages(server, make_client):
     buf = MessageBuffer()
     transport = IRCTransport(
-        host="127.0.0.1", port=server.config.port,
-        nick="testserv-bot", user="bot", channels=["#general"], buffer=buf,
+        host="127.0.0.1",
+        port=server.config.port,
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general"],
+        buffer=buf,
     )
     await transport.connect()
     await asyncio.sleep(0.3)
@@ -60,8 +74,12 @@ async def test_buffers_incoming_messages(server, make_client):
 async def test_send_privmsg(server, make_client):
     buf = MessageBuffer()
     transport = IRCTransport(
-        host="127.0.0.1", port=server.config.port,
-        nick="testserv-bot", user="bot", channels=["#general"], buffer=buf,
+        host="127.0.0.1",
+        port=server.config.port,
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general"],
+        buffer=buf,
     )
     await transport.connect()
     await asyncio.sleep(0.3)
@@ -78,8 +96,12 @@ async def test_send_privmsg(server, make_client):
 async def test_send_join_part(server):
     buf = MessageBuffer()
     transport = IRCTransport(
-        host="127.0.0.1", port=server.config.port,
-        nick="testserv-bot", user="bot", channels=["#general"], buffer=buf,
+        host="127.0.0.1",
+        port=server.config.port,
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general"],
+        buffer=buf,
     )
     await transport.connect()
     await asyncio.sleep(0.3)
@@ -97,8 +119,12 @@ async def test_connect_raises_on_refused():
     """Connecting to an unreachable server raises ConnectionError with a clear message."""
     buf = MessageBuffer()
     transport = IRCTransport(
-        host="127.0.0.1", port=1,  # nothing listens here
-        nick="testserv-bot", user="bot", channels=["#general"], buffer=buf,
+        host="127.0.0.1",
+        port=1,  # nothing listens here
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general"],
+        buffer=buf,
     )
     with pytest.raises(ConnectionError, match=re.escape("127.0.0.1:1")):
         await transport.connect()
@@ -110,8 +136,12 @@ async def test_reconnect_retries_after_connection_error(server):
     buf = MessageBuffer()
     # Use a port where nothing listens so the first _do_connect fails
     transport = IRCTransport(
-        host="127.0.0.1", port=1,
-        nick="testserv-bot", user="bot", channels=["#general"], buffer=buf,
+        host="127.0.0.1",
+        port=1,
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general"],
+        buffer=buf,
     )
     transport._should_run = True
     transport._reconnecting = False

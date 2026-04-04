@@ -1,25 +1,33 @@
 """Tests for overview web renderer."""
+
 import os
 import threading
 import time
 
-from agentirc.overview.model import Agent, Message, MeshState, Room
-from agentirc.overview.renderer_web import render_html, serve_web, _stop_existing_overview
-from agentirc import pidfile
+from culture import pidfile
+from culture.overview.model import Agent, MeshState, Message, Room
+from culture.overview.renderer_web import _stop_existing_overview, render_html, serve_web
 
 
 def _make_fixture() -> MeshState:
     now = time.time()
     agent = Agent(
-        nick="spark-claude", status="active", activity="working on: tests",
-        channels=["#general"], server="spark",
-        backend="claude", model="claude-opus-4-6",
+        nick="spark-claude",
+        status="active",
+        activity="working on: tests",
+        channels=["#general"],
+        server="spark",
+        backend="claude",
+        model="claude-opus-4-6",
     )
     msg = Message(nick="spark-claude", text="hello", timestamp=now - 60, channel="#general")
     room = Room(
-        name="#general", topic="Testing",
-        members=[agent], operators=["spark-claude"],
-        federation_servers=[], messages=[msg],
+        name="#general",
+        topic="Testing",
+        members=[agent],
+        operators=["spark-claude"],
+        federation_servers=[],
+        messages=[msg],
     )
     return MeshState(server_name="spark", rooms=[room], agents=[agent], federation_links=[])
 
@@ -75,6 +83,7 @@ def test_serve_web_writes_and_cleans_pid_port(tmp_path, monkeypatch):
     # We need to stop the server after it starts. Patch HTTPServer to
     # capture the instance so we can call shutdown() from a timer.
     from http.server import HTTPServer
+
     captured = {}
     _orig_init = HTTPServer.__init__
 
@@ -86,7 +95,9 @@ def test_serve_web_writes_and_cleans_pid_port(tmp_path, monkeypatch):
 
     def _run():
         serve_web(
-            host="127.0.0.1", port=6667, server_name="testserver",
+            host="127.0.0.1",
+            port=6667,
+            server_name="testserver",
             serve_port=0,
         )
 
@@ -133,12 +144,14 @@ def test_stop_existing_overview_kills_previous(tmp_path, monkeypatch):
     killed_pids = []
     monkeypatch.setattr(os, "kill", lambda pid, sig: killed_pids.append((pid, sig)))
 
-    import agentirc.overview.renderer_web as rweb
+    import culture.overview.renderer_web as rweb
+
     monkeypatch.setattr(rweb, "is_process_alive", _fake_alive)
 
     _stop_existing_overview(pid_name)
 
     import signal
+
     assert (99999, signal.SIGTERM) in killed_pids, "SIGTERM should be sent"
     assert not (tmp_path / f"{pid_name}.pid").exists()
     assert not (tmp_path / f"{pid_name}.port").exists()
@@ -155,7 +168,8 @@ def test_stop_existing_overview_cleans_stale_pid(tmp_path, monkeypatch):
     kills = []
     monkeypatch.setattr(os, "kill", lambda pid, sig: kills.append((pid, sig)))
 
-    import agentirc.overview.renderer_web as rweb
+    import culture.overview.renderer_web as rweb
+
     monkeypatch.setattr(rweb, "is_process_alive", lambda pid: False)
 
     _stop_existing_overview(pid_name)

@@ -62,16 +62,16 @@ async def test_topic_set_and_get(server, make_client):
     await client.send("JOIN #general")
     await client.recv_all(timeout=0.5)
 
-    await client.send("TOPIC #general :Building agentirc")
+    await client.send("TOPIC #general :Building culture")
     lines = await client.recv_all(timeout=1.0)
     joined = " ".join(lines)
     assert "TOPIC" in joined
-    assert "Building agentirc" in joined
+    assert "Building culture" in joined
 
     await client.send("TOPIC #general")
     response = await client.recv()
     assert "332" in response  # RPL_TOPIC
-    assert "Building agentirc" in response
+    assert "Building culture" in response
 
 
 @pytest.mark.asyncio
@@ -109,7 +109,7 @@ async def test_join_channel_with_topic(server, make_client):
     client1 = await make_client(nick="testserv-ori", user="ori")
     await client1.send("JOIN #general")
     await client1.recv_all(timeout=0.5)
-    await client1.send("TOPIC #general :Welcome to agentirc")
+    await client1.send("TOPIC #general :Welcome to culture")
     await client1.recv_all(timeout=0.5)
 
     client2 = await make_client(nick="testserv-claude", user="claude")
@@ -117,7 +117,7 @@ async def test_join_channel_with_topic(server, make_client):
     lines = await client2.recv_all(timeout=1.0)
     joined = " ".join(lines)
     assert "332" in joined
-    assert "Welcome to agentirc" in joined
+    assert "Welcome to culture" in joined
 
 
 @pytest.mark.asyncio

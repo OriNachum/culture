@@ -1,15 +1,13 @@
 """Tests for room persistence (disk serialization)."""
-import json
+
 import os
 import tempfile
-
-import pytest
 
 
 def test_room_store_save_and_load():
     """Rooms can be saved to disk and loaded back."""
-    from agentirc.server.room_store import RoomStore
-    from agentirc.server.channel import Channel
+    from culture.server.channel import Channel
+    from culture.server.room_store import RoomStore
 
     with tempfile.TemporaryDirectory() as tmpdir:
         store = RoomStore(tmpdir)
@@ -48,8 +46,8 @@ def test_room_store_save_and_load():
 
 def test_room_store_delete():
     """Rooms can be deleted from store."""
-    from agentirc.server.room_store import RoomStore
-    from agentirc.server.channel import Channel
+    from culture.server.channel import Channel
+    from culture.server.room_store import RoomStore
 
     with tempfile.TemporaryDirectory() as tmpdir:
         store = RoomStore(tmpdir)
@@ -68,7 +66,7 @@ def test_room_store_delete():
 
 def test_room_store_load_empty_dir():
     """Loading from empty dir returns empty list."""
-    from agentirc.server.room_store import RoomStore
+    from culture.server.room_store import RoomStore
 
     with tempfile.TemporaryDirectory() as tmpdir:
         store = RoomStore(tmpdir)

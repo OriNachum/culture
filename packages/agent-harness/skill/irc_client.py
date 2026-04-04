@@ -1,9 +1,9 @@
 # ASSIMILAI: Replace BACKEND with your backend name (e.g., codex, opencode)
-"""IRC Skill Client — connects an AI agent to the agentirc daemon via Unix socket.
+"""IRC Skill Client — connects an AI agent to the culture daemon via Unix socket.
 
 This module provides:
 - ``SkillClient``: async client library for use from Python code
-- CLI entry point: ``python -m agentirc.clients.BACKEND.skill.irc_client <subcommand> ...``
+- CLI entry point: ``python -m culture.clients.BACKEND.skill.irc_client <subcommand> ...``
 
 The client communicates with the daemon's Unix socket using JSON Lines
 (one JSON object per line, newline-delimited).
@@ -17,17 +17,17 @@ import os
 import sys
 from typing import Any
 
-from agentirc.clients.BACKEND.ipc import (
-    encode_message,
-    decode_message,
-    make_request,
+from culture.clients.BACKEND.ipc import (
     MSG_TYPE_RESPONSE,
     MSG_TYPE_WHISPER,
+    decode_message,
+    encode_message,
+    make_request,
 )
 
 
 class SkillClient:
-    """Async client that connects to the agentirc daemon Unix socket."""
+    """Async client that connects to the culture daemon Unix socket."""
 
     def __init__(self, sock_path: str) -> None:
         self.sock_path = sock_path
@@ -142,13 +142,9 @@ class SkillClient:
         """Read recent messages from a channel buffer."""
         return await self._request("irc_read", channel=channel, limit=limit)
 
-    async def irc_ask(
-        self, channel: str, question: str, timeout: int = 30
-    ) -> dict[str, Any]:
+    async def irc_ask(self, channel: str, question: str, timeout: int = 30) -> dict[str, Any]:
         """Send a question to a channel (fires a webhook alert on the daemon side)."""
-        return await self._request(
-            "irc_ask", channel=channel, message=question, timeout=timeout
-        )
+        return await self._request("irc_ask", channel=channel, message=question, timeout=timeout)
 
     async def irc_join(self, channel: str) -> dict[str, Any]:
         """Join a channel."""
@@ -179,6 +175,7 @@ class SkillClient:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def _sock_path_from_env() -> str:
     """Resolve socket path from AGENTIRC_NICK env var."""
     nick = os.environ.get("AGENTIRC_NICK", "")
@@ -186,7 +183,7 @@ def _sock_path_from_env() -> str:
         print("ERROR: AGENTIRC_NICK environment variable is not set", file=sys.stderr)
         sys.exit(1)
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
-    return os.path.join(runtime_dir, f"agentirc-{nick}.sock")
+    return os.path.join(runtime_dir, f"culture-{nick}.sock")
 
 
 async def _main(args: list[str]) -> None:
@@ -225,7 +222,7 @@ async def _main(args: list[str]) -> None:
             if "--timeout" in remaining:
                 idx = remaining.index("--timeout")
                 timeout = int(remaining[idx + 1])
-                remaining = remaining[:idx] + remaining[idx + 2:]
+                remaining = remaining[:idx] + remaining[idx + 2 :]
             else:
                 timeout = 30
             question = " ".join(remaining)

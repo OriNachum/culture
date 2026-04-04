@@ -1,13 +1,13 @@
-import pytest
-import tempfile
 import os
 import shutil
-from pathlib import Path
+import tempfile
+
+import pytest
 
 
 def test_load_config_from_yaml():
     """Load a complete agents.yaml and verify all fields parse."""
-    from agentirc.clients.claude.config import load_config
+    from culture.clients.claude.config import load_config
 
     yaml_content = """\
 server:
@@ -31,7 +31,7 @@ webhooks:
 buffer_size: 300
 
 agents:
-  - nick: spark-agentirc
+  - nick: spark-culture
     directory: /tmp/test
     channels:
       - "#general"
@@ -56,7 +56,7 @@ agents:
             assert config.buffer_size == 300
             assert len(config.agents) == 1
             agent = config.agents[0]
-            assert agent.nick == "spark-agentirc"
+            assert agent.nick == "spark-culture"
             assert agent.directory == "/tmp/test"
             assert agent.channels == ["#general", "#dev"]
             assert agent.model == "claude-opus-4-6"
@@ -67,11 +67,11 @@ agents:
 
 def test_load_config_defaults():
     """Missing optional fields get defaults."""
-    from agentirc.clients.claude.config import load_config
+    from culture.clients.claude.config import load_config
 
     yaml_content = """\
 agents:
-  - nick: spark-agentirc
+  - nick: spark-culture
     directory: /tmp
     channels:
       - "#general"
@@ -100,11 +100,11 @@ agents:
 
 def test_get_agent_by_nick():
     """Look up an agent config by nick."""
-    from agentirc.clients.claude.config import load_config
+    from culture.clients.claude.config import load_config
 
     yaml_content = """\
 agents:
-  - nick: spark-agentirc
+  - nick: spark-culture
     directory: /tmp/a
     channels: ["#general"]
   - nick: spark-assimilai
@@ -126,7 +126,7 @@ agents:
 
 def test_server_name_field():
     """Load YAML with server.name and verify it parses."""
-    from agentirc.clients.claude.config import load_config
+    from culture.clients.claude.config import load_config
 
     yaml_content = """\
 server:
@@ -149,8 +149,8 @@ agents: []
 
 
 def test_server_name_default():
-    """Load YAML without server.name and verify default 'agentirc'."""
-    from agentirc.clients.claude.config import load_config
+    """Load YAML without server.name and verify default 'culture'."""
+    from culture.clients.claude.config import load_config
 
     yaml_content = """\
 server:
@@ -164,17 +164,17 @@ agents: []
         f.flush()
         try:
             config = load_config(f.name)
-            assert config.server.name == "agentirc"
+            assert config.server.name == "culture"
         finally:
             os.unlink(f.name)
 
 
 def test_sanitize_agent_name():
     """Test sanitize_agent_name with various inputs."""
-    from agentirc.clients.claude.config import sanitize_agent_name
+    from culture.clients.claude.config import sanitize_agent_name
 
     assert sanitize_agent_name("My Project") == "my-project"
-    assert sanitize_agent_name("agentirc") == "agentirc"
+    assert sanitize_agent_name("culture") == "culture"
     assert sanitize_agent_name(".hidden") == "hidden"
     assert sanitize_agent_name("UPPER_case") == "upper-case"
 
@@ -187,10 +187,14 @@ def test_sanitize_agent_name():
 
 def test_save_and_load_roundtrip():
     """Save a DaemonConfig, load it back, verify all fields match."""
-    from agentirc.clients.claude.config import (
-        AgentConfig, DaemonConfig, ServerConnConfig,
-        SupervisorConfig, WebhookConfig,
-        save_config, load_config,
+    from culture.clients.claude.config import (
+        AgentConfig,
+        DaemonConfig,
+        ServerConnConfig,
+        SupervisorConfig,
+        WebhookConfig,
+        load_config,
+        save_config,
     )
 
     tmpdir = tempfile.mkdtemp()
@@ -204,7 +208,7 @@ def test_save_and_load_roundtrip():
             buffer_size=200,
             agents=[
                 AgentConfig(
-                    nick="spark-agentirc",
+                    nick="spark-culture",
                     directory="/tmp/work",
                     channels=["#general", "#dev"],
                     model="claude-opus-4-6",
@@ -225,7 +229,7 @@ def test_save_and_load_roundtrip():
         assert loaded.webhooks.irc_channel == "#ops"
         assert loaded.buffer_size == 200
         assert len(loaded.agents) == 1
-        assert loaded.agents[0].nick == "spark-agentirc"
+        assert loaded.agents[0].nick == "spark-culture"
         assert loaded.agents[0].directory == "/tmp/work"
         assert loaded.agents[0].channels == ["#general", "#dev"]
     finally:
@@ -234,13 +238,13 @@ def test_save_and_load_roundtrip():
 
 def test_load_config_or_default_missing_file():
     """Nonexistent path returns default config."""
-    from agentirc.clients.claude.config import load_config_or_default
+    from culture.clients.claude.config import load_config_or_default
 
     tmpdir = tempfile.mkdtemp()
     try:
         path = os.path.join(tmpdir, "nonexistent.yaml")
         config = load_config_or_default(path)
-        assert config.server.name == "agentirc"
+        assert config.server.name == "culture"
         assert config.server.host == "localhost"
         assert config.server.port == 6667
         assert config.agents == []
@@ -251,36 +255,41 @@ def test_load_config_or_default_missing_file():
 
 def test_add_agent_to_empty_config():
     """No file exists, add_agent_to_config creates it with the agent."""
-    from agentirc.clients.claude.config import (
-        AgentConfig, add_agent_to_config, load_config,
+    from culture.clients.claude.config import (
+        AgentConfig,
+        add_agent_to_config,
+        load_config,
     )
 
     tmpdir = tempfile.mkdtemp()
     try:
         path = os.path.join(tmpdir, "agents.yaml")
         agent = AgentConfig(
-            nick="spark-agentirc",
+            nick="spark-culture",
             directory="/tmp/work",
             channels=["#general"],
         )
 
         config = add_agent_to_config(path, agent)
         assert len(config.agents) == 1
-        assert config.agents[0].nick == "spark-agentirc"
+        assert config.agents[0].nick == "spark-culture"
 
         # Verify file was written
         loaded = load_config(path)
         assert len(loaded.agents) == 1
-        assert loaded.agents[0].nick == "spark-agentirc"
+        assert loaded.agents[0].nick == "spark-culture"
     finally:
         shutil.rmtree(tmpdir)
 
 
 def test_add_agent_to_existing_config():
     """Existing config with one agent, add second, both preserved."""
-    from agentirc.clients.claude.config import (
-        AgentConfig, add_agent_to_config, save_config,
-        DaemonConfig, load_config,
+    from culture.clients.claude.config import (
+        AgentConfig,
+        DaemonConfig,
+        add_agent_to_config,
+        load_config,
+        save_config,
     )
 
     tmpdir = tempfile.mkdtemp()
@@ -290,7 +299,7 @@ def test_add_agent_to_existing_config():
         # Create initial config with one agent
         initial = DaemonConfig(
             agents=[
-                AgentConfig(nick="spark-agentirc", directory="/tmp/a", channels=["#general"]),
+                AgentConfig(nick="spark-culture", directory="/tmp/a", channels=["#general"]),
             ],
         )
         save_config(path, initial)
@@ -308,15 +317,18 @@ def test_add_agent_to_existing_config():
         loaded = load_config(path)
         assert len(loaded.agents) == 2
         nicks = {a.nick for a in loaded.agents}
-        assert nicks == {"spark-agentirc", "spark-ori"}
+        assert nicks == {"spark-culture", "spark-ori"}
     finally:
         shutil.rmtree(tmpdir)
 
 
 def test_add_agent_nick_collision():
     """Duplicate nick raises ValueError."""
-    from agentirc.clients.claude.config import (
-        AgentConfig, add_agent_to_config, save_config, DaemonConfig,
+    from culture.clients.claude.config import (
+        AgentConfig,
+        DaemonConfig,
+        add_agent_to_config,
+        save_config,
     )
 
     tmpdir = tempfile.mkdtemp()
@@ -326,14 +338,14 @@ def test_add_agent_nick_collision():
         # Create config with existing agent
         initial = DaemonConfig(
             agents=[
-                AgentConfig(nick="spark-agentirc", directory="/tmp/a", channels=["#general"]),
+                AgentConfig(nick="spark-culture", directory="/tmp/a", channels=["#general"]),
             ],
         )
         save_config(path, initial)
 
         # Try to add agent with same nick
         duplicate = AgentConfig(
-            nick="spark-agentirc",
+            nick="spark-culture",
             directory="/tmp/b",
             channels=["#dev"],
         )

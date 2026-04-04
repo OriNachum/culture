@@ -1,13 +1,17 @@
 import asyncio
 import os
 import tempfile
+
 import pytest
 
-from agentirc.clients.acp.daemon import ACPDaemon
-from agentirc.clients.acp.config import (
-    DaemonConfig, ServerConnConfig, AgentConfig,
-    SupervisorConfig, WebhookConfig,
+from culture.clients.acp.config import (
+    AgentConfig,
+    DaemonConfig,
+    ServerConnConfig,
+    SupervisorConfig,
+    WebhookConfig,
 )
+from culture.clients.acp.daemon import ACPDaemon
 
 
 @pytest.mark.asyncio
@@ -46,8 +50,9 @@ async def test_acp_daemon_ipc_irc_send(server, make_client):
     await human.send("JOIN #general")
     await human.recv_all(timeout=0.3)
 
-    from agentirc.clients.acp.ipc import encode_message, decode_message, make_request
-    sock_path = os.path.join(sock_dir, "agentirc-testserv-opencode.sock")
+    from culture.clients.acp.ipc import decode_message, encode_message, make_request
+
+    sock_path = os.path.join(sock_dir, "culture-testserv-opencode.sock")
     reader, writer = await asyncio.open_unix_connection(sock_path)
 
     req = make_request("irc_send", channel="#general", message="hello from acp skill")
@@ -119,21 +124,30 @@ async def test_acp_relay_target_fifo(server, make_client):
     assert len(daemon._mention_targets) == 2
 
     # First agent response dequeues first target (#general)
-    await daemon._on_agent_message({
-        "content": [{"type": "text", "text": "channel response"}],
-    })
+    await daemon._on_agent_message(
+        {
+            "content": [{"type": "text", "text": "channel response"}],
+        }
+    )
     assert len(daemon._mention_targets) == 1
 
     # Second agent response dequeues second target (DM to testserv-alice)
-    await daemon._on_agent_message({
-        "content": [{"type": "text", "text": "dm response"}],
-    })
+    await daemon._on_agent_message(
+        {
+            "content": [{"type": "text", "text": "dm response"}],
+        }
+    )
     assert len(daemon._mention_targets) == 0
 
     # Verify alice received the channel message in #general
     lines = await human.recv_all(timeout=1.0)
     channel_msgs = [l for l in lines if "#general" in l and "channel response" in l]
-    dm_msgs = [l for l in lines if "dm response" in l and "testserv-alice" in l.split()[0].lower() if "PRIVMSG" in l]
+    dm_msgs = [
+        l
+        for l in lines
+        if "dm response" in l and "testserv-alice" in l.split()[0].lower()
+        if "PRIVMSG" in l
+    ]
     assert len(channel_msgs) >= 1, f"Expected 'channel response' in #general, got: {lines}"
     # DM goes to testserv-alice directly, so alice sees it as a PRIVMSG to their nick
     assert any("dm response" in l for l in lines), f"Expected 'dm response', got: {lines}"

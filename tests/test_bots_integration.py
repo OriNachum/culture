@@ -4,17 +4,17 @@ import pytest
 import pytest_asyncio
 from aiohttp import ClientSession
 
-from agentirc.bots.bot_manager import BotManager
-from agentirc.bots.config import BotConfig
-from agentirc.bots.http_listener import HttpListener
+from culture.bots.bot_manager import BotManager
+from culture.bots.config import BotConfig
+from culture.bots.http_listener import HttpListener
 
 
 @pytest_asyncio.fixture
 async def full_bot_setup(server, make_client, tmp_path, monkeypatch):
     """Start an IRC server with BotManager, HttpListener, and a test client."""
-    monkeypatch.setattr("agentirc.bots.config.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot_manager.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.config.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot_manager.BOTS_DIR", tmp_path)
 
     mgr = BotManager(server)
     server.bot_manager = mgr
@@ -62,22 +62,22 @@ async def test_full_webhook_to_irc_flow(full_bot_setup):
     async with ClientSession() as session:
         async with session.post(
             f"http://127.0.0.1:{port}/testserv-ori-ghci",
-            json={"action": "completed", "repo": "agentirc", "status": "success"},
+            json={"action": "completed", "repo": "culture", "status": "success"},
         ) as resp:
             assert resp.status == 200
             data = await resp.json()
-            assert "CI completed for agentirc: success" in data["message"]
+            assert "CI completed for culture: success" in data["message"]
             assert "@testserv-claude" in data["message"]
 
     # Agent should receive the PRIVMSG + NOTICE (mention)
     agent_lines = await agent.recv_all(timeout=0.5)
-    assert any("CI completed for agentirc: success" in l for l in agent_lines)
+    assert any("CI completed for culture: success" in l for l in agent_lines)
     assert any("PRIVMSG" in l and "@testserv-claude" in l for l in agent_lines)
     assert any("NOTICE" in l and "mentioned you" in l for l in agent_lines)
 
     # Owner should receive a DM
     owner_lines = await owner.recv_all(timeout=0.5)
-    assert any("CI completed for agentirc: success" in l for l in owner_lines)
+    assert any("CI completed for culture: success" in l for l in owner_lines)
 
 
 @pytest.mark.asyncio

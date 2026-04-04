@@ -1,0 +1,761 @@
+"""Codex agent daemon — bridges a Codex agent to the IRC network.
+
+Uses CodexAgentRunner (codex app-server over JSON-RPC/stdio) and
+CodexSupervisor (codex exec for periodic evaluation).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import datetime
+import logging
+import os
+import time
+from collections import deque
+
+from culture.clients.codex.agent_runner import CodexAgentRunner
+from culture.clients.codex.config import AgentConfig, DaemonConfig
+from culture.clients.codex.ipc import make_response
+from culture.clients.codex.irc_transport import IRCTransport
+from culture.clients.codex.message_buffer import MessageBuffer
+from culture.clients.codex.socket_server import SocketServer
+from culture.clients.codex.supervisor import CodexSupervisor
+from culture.clients.codex.webhook import AlertEvent, WebhookClient
+from culture.pidfile import remove_pid, write_pid
+
+logger = logging.getLogger(__name__)
+
+MAX_CRASH_COUNT = 3
+CRASH_WINDOW_SECONDS = 300
+CRASH_RESTART_DELAY = 5
+
+
+class CodexDaemon:
+    """Central orchestrator that ties together the IRC transport, socket server,
+    Codex agent runner, supervisor, and webhook client for a single agent nick."""
+
+    def __init__(
+        self,
+        config: DaemonConfig,
+        agent: AgentConfig,
+        socket_dir: str | None = None,
+        skip_codex: bool = False,
+    ) -> None:
+        self.config = config
+        self.agent = agent
+        self.skip_codex = skip_codex
+
+        self._socket_path = os.path.join(
+            socket_dir or os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
+            f"culture-{agent.nick}.sock",
+        )
+
+        self._buffer: MessageBuffer | None = None
+        self._transport: IRCTransport | None = None
+        self._webhook: WebhookClient | None = None
+        self._socket_server: SocketServer | None = None
+        self._agent_runner: CodexAgentRunner | None = None
+        self._supervisor: CodexSupervisor | None = None
+
+        # FIFO queue of relay targets — each @mention enqueues a target,
+        # each agent response dequeues one, ensuring correct routing even
+        # when multiple mentions arrive while the agent is busy.
+        self._mention_targets: deque[str] = deque()
+
+        # Crash-recovery state
+        self._crash_times: list[float] = []
+        self._circuit_open = False
+
+        # Pause/sleep state
+        self._paused: bool = False
+        self._last_activation: float | None = None
+
+        # Status query state — for asking the agent what it's doing
+        self._status_query_event: asyncio.Event | None = None
+        self._status_query_response: str = ""
+        self._last_activity_text: str = ""
+
+        # Graceful shutdown
+        self._stop_event: asyncio.Event | None = None
+        self._pid_name: str = ""
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    async def start(self) -> None:
+        """Start all components in dependency order."""
+        # 0. Write PID file for this agent
+        self._pid_name = f"agent-{self.agent.nick}"
+        write_pid(self._pid_name, os.getpid())
+
+        # 1. Message buffer
+        self._buffer = MessageBuffer(max_per_channel=self.config.buffer_size)
+
+        # 2. IRC transport (with @mention -> agent activation)
+        self._transport = IRCTransport(
+            host=self.config.server.host,
+            port=self.config.server.port,
+            nick=self.agent.nick,
+            user=self.agent.nick,
+            channels=list(self.agent.channels),
+            buffer=self._buffer,
+            on_mention=self._on_mention,
+            tags=list(self.agent.tags),
+            on_roominvite=self._on_roominvite,
+        )
+        await self._transport.connect()
+
+        # 3. Webhook client (uses transport for IRC-based alerts)
+        self._webhook = WebhookClient(
+            config=self.config.webhooks,
+            irc_send=self._transport.send_privmsg,
+        )
+
+        # 4. Unix socket server with IPC handler
+        self._socket_server = SocketServer(
+            path=self._socket_path,
+            handler=self._handle_ipc,
+        )
+        await self._socket_server.start()
+
+        # 5. Supervisor using codex exec
+        self._supervisor = CodexSupervisor(
+            model=self.config.supervisor.model,
+            window_size=self.config.supervisor.window_size,
+            eval_interval=self.config.supervisor.eval_interval,
+            escalation_threshold=self.config.supervisor.escalation_threshold,
+            prompt_override=self.config.supervisor.prompt_override,
+            on_whisper=self._on_supervisor_whisper,
+            on_escalation=self._on_supervisor_escalation,
+        )
+
+        # 6. Optionally start the Codex agent runner
+        if not self.skip_codex:
+            await self._start_agent_runner()
+
+        # 7. Sleep scheduler background task
+        self._sleep_task = asyncio.create_task(self._sleep_scheduler())
+
+        logger.info("CodexDaemon started for %s (socket=%s)", self.agent.nick, self._socket_path)
+
+    async def stop(self) -> None:
+        """Cleanly shut down all components."""
+        if hasattr(self, "_sleep_task") and self._sleep_task:
+            self._sleep_task.cancel()
+            try:
+                await self._sleep_task
+            except asyncio.CancelledError:
+                pass
+            self._sleep_task = None
+
+        if self._agent_runner is not None:
+            await self._agent_runner.stop()
+            self._agent_runner = None
+
+        if self._socket_server is not None:
+            await self._socket_server.stop()
+            self._socket_server = None
+
+        if self._transport is not None:
+            await self._transport.disconnect()
+            self._transport = None
+
+        # Remove PID file
+        if self._pid_name:
+            remove_pid(self._pid_name)
+
+        logger.info("CodexDaemon stopped for %s", self.agent.nick)
+
+    def _parse_sleep_schedule(self) -> tuple[int, int] | None:
+        """Parse sleep_start/sleep_end into minutes. Returns None if invalid."""
+        try:
+            sh, sm = (int(x) for x in self.config.sleep_start.split(":"))
+            wh, wm = (int(x) for x in self.config.sleep_end.split(":"))
+            if not (0 <= sh <= 23 and 0 <= sm <= 59 and 0 <= wh <= 23 and 0 <= wm <= 59):
+                raise ValueError("hours/minutes out of range")
+            return (sh * 60 + sm, wh * 60 + wm)
+        except (ValueError, AttributeError):
+            logger.warning(
+                "Invalid sleep schedule '%s'-'%s' for %s — scheduler disabled",
+                getattr(self.config, "sleep_start", None),
+                getattr(self.config, "sleep_end", None),
+                self.agent.nick,
+            )
+            return None
+
+    async def _sleep_scheduler(self) -> None:
+        """Background task that auto-pauses/resumes based on sleep schedule."""
+        schedule = self._parse_sleep_schedule()
+        if schedule is None:
+            return
+        sleep_minutes, wake_minutes = schedule
+
+        while True:
+            try:
+                await asyncio.sleep(60)  # Check every minute
+                now = datetime.datetime.now()
+                current_minutes = now.hour * 60 + now.minute
+
+                if sleep_minutes > wake_minutes:
+                    # Overnight: e.g., 23:00-08:00
+                    should_sleep = (
+                        current_minutes >= sleep_minutes or current_minutes < wake_minutes
+                    )
+                else:
+                    # Same day: e.g., 13:00-14:00
+                    should_sleep = sleep_minutes <= current_minutes < wake_minutes
+
+                if should_sleep and not self._paused:
+                    self._paused = True
+                    logger.info("Sleep schedule: pausing %s", self.agent.nick)
+                elif not should_sleep and self._paused:
+                    self._paused = False
+                    logger.info("Sleep schedule: resuming %s", self.agent.nick)
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                logger.exception("Sleep scheduler error")
+
+    async def _graceful_shutdown(self) -> None:
+        """Trigger a graceful shutdown, signaling any waiting stop event."""
+        logger.info("Graceful shutdown requested for %s", self.agent.nick)
+        if self._stop_event is not None:
+            self._stop_event.set()
+        else:
+            # No external stop_event -- stop directly
+            await self.stop()
+
+    def set_stop_event(self, event: asyncio.Event) -> None:
+        """Register an external stop event that _graceful_shutdown will signal."""
+        self._stop_event = event
+
+    # ------------------------------------------------------------------
+    # Agent runner helpers
+    # ------------------------------------------------------------------
+
+    async def _start_agent_runner(self) -> None:
+        self._agent_runner = CodexAgentRunner(
+            model=self.agent.model,
+            directory=self.agent.directory,
+            system_prompt=self._build_system_prompt(),
+            on_exit=self._on_agent_exit,
+            on_message=self._on_agent_message,
+        )
+        await self._agent_runner.start()
+        logger.info("CodexAgentRunner started for %s", self.agent.nick)
+
+    def _on_mention(self, target: str, sender: str, text: str) -> None:
+        """Called by IRCTransport when the agent is @mentioned or DM'd.
+
+        When the mention is inside a thread, provides thread-scoped context.
+        """
+        if self._paused:
+            return
+        if self._agent_runner and self._agent_runner.is_running():
+            self._last_activation = time.time()
+            # Enqueue relay target (FIFO matches prompt queue order)
+            self._mention_targets.append(target if target.startswith("#") else sender)
+            if target.startswith("#"):
+                import re
+
+                thread_match = re.match(r"^\[thread:([a-zA-Z0-9\-]+)\] ", text)
+                if thread_match and self._buffer:
+                    thread_name = thread_match.group(1)
+                    thread_msgs = self._buffer.read_thread(target, thread_name)
+                    history = "\n".join(f"  <{m.nick}> {m.text}" for m in thread_msgs)
+                    prompt = (
+                        f"[IRC @mention in {target}, thread:{thread_name}]\n"
+                        f"Thread history:\n{history}\n"
+                        f"  <{sender}> {text}"
+                    )
+                else:
+                    prompt = f"[IRC @mention in {target}] <{sender}> {text}"
+            else:
+                prompt = f"[IRC DM] <{sender}> {text}"
+            asyncio.create_task(self._agent_runner.send_prompt(prompt))
+
+    def _on_roominvite(self, channel: str, meta_text: str) -> None:
+        """Called by IRCTransport when a ROOMINVITE is received."""
+        asyncio.create_task(self._handle_roominvite(channel, meta_text))
+
+    async def _handle_roominvite(self, channel: str, meta_text: str) -> None:
+        """Evaluate a room invitation using the agent's LLM."""
+        from culture.server.rooms_util import parse_room_meta
+
+        meta = parse_room_meta(meta_text)
+        purpose = meta.get("purpose", "")
+        instructions = meta.get("instructions", "")
+        tags = meta.get("tags", "")
+        _ = meta.get("requestor")
+
+        prompt = (
+            f"You've been invited to join IRC room {channel}.\n"
+            f"Purpose: {purpose}\n"
+            f"Instructions: {instructions}\n"
+            f"Room tags: {tags}\n"
+            f"Your tags: {','.join(self.agent.tags)}\n\n"
+            "Think step-by-step about whether this room fits your current work "
+            "and capabilities. Then decide: should you join? Answer YES or NO."
+        )
+
+        if self._agent_runner is None or not self._agent_runner.is_running():
+            # No live agent — auto-join without evaluation
+            logger.info(
+                "ROOMINVITE for %s: no agent runner active, auto-joining %s",
+                self.agent.nick,
+                channel,
+            )
+            assert self._transport is not None
+            await self._transport.send_raw(f"JOIN {channel}")
+            return
+
+        # Use the agent runner to evaluate
+        # Enqueue a None relay target so the evaluation response doesn't
+        # steal a real mention's relay target from the deque.
+        self._mention_targets.append(None)
+        await self._agent_runner.send_prompt(prompt)
+        logger.info(
+            "ROOMINVITE for %s on %s — evaluation prompt sent to agent",
+            self.agent.nick,
+            channel,
+        )
+
+    async def _on_agent_message(self, msg: dict) -> None:
+        """Relay agent text to IRC and feed to supervisor."""
+        # Dequeue the relay target that corresponds to this turn
+        relay_target = self._mention_targets.popleft() if self._mention_targets else None
+        if self._transport and relay_target:
+            content = msg.get("content", [])
+            for item in content:
+                if item.get("type") == "text":
+                    text = item["text"].strip()
+                    if text:
+                        # Split long messages into IRC-friendly chunks
+                        for line in text.split("\n"):
+                            line = line.strip()
+                            if line:
+                                await self._transport.send_privmsg(relay_target, line)
+
+        if self._supervisor:
+            await self._supervisor.observe(msg)
+
+        # Capture last assistant text for status reporting
+        if msg.get("type") == "assistant":
+            for block in msg.get("content", []):
+                if isinstance(block, dict) and block.get("type") == "text":
+                    self._last_activity_text = block["text"]
+                    break
+                elif isinstance(block, str):
+                    self._last_activity_text = block
+                    break
+
+            # If a status query is pending, fulfill it
+            if self._status_query_event and not self._status_query_event.is_set():
+                self._status_query_response = self._last_activity_text
+                self._status_query_event.set()
+
+    def _build_system_prompt(self) -> str:
+        if self.agent.system_prompt:
+            return self.agent.system_prompt
+        return (
+            f"You are {self.agent.nick}, an AI agent on the culture IRC network.\n"
+            f"You have IRC tools available via the irc skill. Use them to communicate.\n"
+            f"Your working directory is {self.agent.directory}.\n"
+            f"Check IRC channels periodically with irc_read() for new messages.\n"
+            f"When you finish a task, share results in the appropriate channel with irc_send()."
+        )
+
+    async def _on_agent_exit(self, exit_code: int) -> None:
+        """Handle agent process exit with crash recovery and circuit breaker."""
+        now = time.time()
+
+        if exit_code == 0:
+            logger.info("Agent %s exited cleanly", self.agent.nick)
+            if self._webhook:
+                await self._webhook.fire(
+                    AlertEvent(
+                        event_type="agent_complete",
+                        nick=self.agent.nick,
+                        message=f"Agent {self.agent.nick} completed successfully.",
+                    )
+                )
+            return
+
+        # Non-zero exit -- record crash time and check circuit breaker
+        logger.warning("Agent %s crashed with exit code %d", self.agent.nick, exit_code)
+
+        # Prune old crash times outside the window
+        self._crash_times = [t for t in self._crash_times if now - t < CRASH_WINDOW_SECONDS]
+        self._crash_times.append(now)
+
+        if self._webhook:
+            await self._webhook.fire(
+                AlertEvent(
+                    event_type="agent_error",
+                    nick=self.agent.nick,
+                    message=f"Agent {self.agent.nick} crashed (exit {exit_code}).",
+                )
+            )
+
+        if len(self._crash_times) >= MAX_CRASH_COUNT:
+            self._circuit_open = True
+            logger.error(
+                "Agent %s crashed %d times in %ds — circuit breaker opened, not restarting",
+                self.agent.nick,
+                len(self._crash_times),
+                CRASH_WINDOW_SECONDS,
+            )
+            if self._webhook:
+                await self._webhook.fire(
+                    AlertEvent(
+                        event_type="agent_spiraling",
+                        nick=self.agent.nick,
+                        message=(
+                            f"Agent {self.agent.nick} has crashed {len(self._crash_times)} times "
+                            f"in {CRASH_WINDOW_SECONDS}s — escalating, not restarting."
+                        ),
+                    )
+                )
+            return
+
+        # Schedule restart after delay
+        logger.info(
+            "Restarting agent %s in %ds (crash %d/%d in window)",
+            self.agent.nick,
+            CRASH_RESTART_DELAY,
+            len(self._crash_times),
+            MAX_CRASH_COUNT,
+        )
+        asyncio.create_task(self._delayed_restart())
+
+    async def _delayed_restart(self) -> None:
+        await asyncio.sleep(CRASH_RESTART_DELAY)
+        if not self._circuit_open and self._transport is not None:
+            await self._start_agent_runner()
+
+    # ------------------------------------------------------------------
+    # Supervisor callbacks
+    # ------------------------------------------------------------------
+
+    async def _on_supervisor_whisper(self, message: str, whisper_type: str) -> None:
+        """Deliver a supervisor whisper to the skill client via socket."""
+        if self._socket_server:
+            await self._socket_server.send_whisper(message, whisper_type)
+
+    async def _on_supervisor_escalation(self, message: str) -> None:
+        """Escalate via webhook + IRC when supervisor exhausts whispers."""
+        if self._webhook:
+            await self._webhook.fire(
+                AlertEvent(
+                    event_type="agent_spiraling",
+                    nick=self.agent.nick,
+                    message=f"[ESCALATION] {self.agent.nick}: {message}",
+                )
+            )
+
+    # ------------------------------------------------------------------
+    # IPC handler
+    # ------------------------------------------------------------------
+
+    async def _handle_ipc(self, msg: dict) -> dict:
+        """Route an IPC request to the appropriate component."""
+        req_id = msg.get("id", "")
+        msg_type = msg.get("type", "")
+
+        try:
+            if msg_type == "irc_send":
+                return await self._ipc_irc_send(req_id, msg)
+
+            elif msg_type == "irc_read":
+                return await self._ipc_irc_read(req_id, msg)
+
+            elif msg_type == "irc_join":
+                return await self._ipc_irc_join(req_id, msg)
+
+            elif msg_type == "irc_part":
+                return await self._ipc_irc_part(req_id, msg)
+
+            elif msg_type == "irc_channels":
+                return await self._ipc_irc_channels(req_id)
+
+            elif msg_type == "irc_who":
+                return await self._ipc_irc_who(req_id, msg)
+
+            elif msg_type == "irc_ask":
+                return await self._ipc_irc_ask(req_id, msg)
+
+            elif msg_type == "compact":
+                return await self._ipc_compact(req_id)
+
+            elif msg_type == "clear":
+                return await self._ipc_clear(req_id)
+
+            elif msg_type == "status":
+                return await self._ipc_status(req_id, msg)
+
+            elif msg_type == "pause":
+                return await self._ipc_pause(req_id)
+
+            elif msg_type == "resume":
+                return await self._ipc_resume(req_id)
+
+            elif msg_type == "irc_thread_create":
+                return await self._ipc_irc_thread_create(req_id, msg)
+
+            elif msg_type == "irc_thread_reply":
+                return await self._ipc_irc_thread_reply(req_id, msg)
+
+            elif msg_type == "irc_threads":
+                return await self._ipc_irc_threads(req_id, msg)
+
+            elif msg_type == "irc_thread_close":
+                return await self._ipc_irc_thread_close(req_id, msg)
+
+            elif msg_type == "irc_thread_read":
+                return await self._ipc_irc_thread_read(req_id, msg)
+
+            elif msg_type == "shutdown":
+                asyncio.create_task(self._graceful_shutdown())
+                return make_response(req_id, ok=True)
+
+            else:
+                return make_response(req_id, ok=False, error=f"Unknown message type: {msg_type!r}")
+
+        except Exception as exc:
+            logger.exception("IPC handler error for type %r", msg_type)
+            return make_response(req_id, ok=False, error=str(exc))
+
+    # ------------------------------------------------------------------
+    # IPC sub-handlers
+    # ------------------------------------------------------------------
+
+    async def _ipc_pause(self, req_id: str) -> dict:
+        self._paused = True
+        logger.info("Agent %s paused", self.agent.nick)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_resume(self, req_id: str) -> dict:
+        self._paused = False
+        logger.info("Agent %s resumed", self.agent.nick)
+        # NOTE: Catch-up on missed messages is not yet implemented.
+        # IRCTransport does not process HISTORY responses into the buffer.
+        # The agent resumes and will see new messages going forward.
+        return make_response(req_id, ok=True)
+
+    async def _ipc_status(self, req_id: str, msg: dict | None = None) -> dict:
+        running = self._agent_runner is not None and self._agent_runner.is_running()
+        turn_count = self._supervisor._turn_count if self._supervisor else 0
+
+        # Determine activity description
+        query = msg.get("query", False) if msg else False
+        description = self._describe_activity(live_query=query)
+
+        # If live query requested and agent is active, ask the agent directly
+        if query and running and not self._paused:
+            description = await self._query_agent_status()
+
+        return make_response(
+            req_id,
+            ok=True,
+            data={
+                "running": running,
+                "paused": self._paused,
+                "turn_count": turn_count,
+                "last_activation": self._last_activation,
+                "activity": "paused" if self._paused else ("working" if running else "idle"),
+                "description": description,
+            },
+        )
+
+    def _describe_activity(self, live_query: bool = False) -> str:
+        """Return a human-readable description of what the agent is doing."""
+        if self._paused:
+            return "paused"
+        if not self._last_activity_text:
+            return "nothing"
+        # Return first line of last activity, truncated
+        first_line = self._last_activity_text.strip().split("\n")[0]
+        if len(first_line) > 120:
+            first_line = first_line[:117] + "..."
+        return first_line
+
+    async def _query_agent_status(self) -> str:
+        """Ask the agent directly what it's working on."""
+        if not self._agent_runner or not self._agent_runner.is_running():
+            return "nothing"
+
+        self._status_query_event = asyncio.Event()
+        self._status_query_response = ""
+
+        try:
+            # Enqueue a None relay target so the status response doesn't
+            # steal a real mention's relay target from the deque.
+            self._mention_targets.append(None)
+            await self._agent_runner.send_prompt(
+                "[SYSTEM] Briefly describe what you are currently working on "
+                "in one sentence. Reply with just the description, no preamble."
+            )
+            # Wait up to 10s for the agent to respond
+            await asyncio.wait_for(self._status_query_event.wait(), timeout=10.0)
+            response = self._status_query_response.strip()
+            # Take first line, truncate
+            first_line = response.split("\n")[0]
+            if len(first_line) > 120:
+                first_line = first_line[:117] + "..."
+            return first_line or "nothing"
+        except asyncio.TimeoutError:
+            return "busy (no response)"
+        finally:
+            self._status_query_event = None
+            self._status_query_response = ""
+
+    async def _ipc_irc_send(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        text = msg.get("message", "")
+        if not channel:
+            return make_response(req_id, ok=False, error="Missing 'channel'")
+        if not text:
+            return make_response(req_id, ok=False, error="Missing 'message'")
+        assert self._transport is not None
+        await self._transport.send_privmsg(channel, text)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_irc_read(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        limit = int(msg.get("limit", 50))
+        if not channel:
+            return make_response(req_id, ok=False, error="Missing 'channel'")
+        assert self._buffer is not None
+        messages = self._buffer.read(channel, limit=limit)
+        return make_response(
+            req_id,
+            ok=True,
+            data={
+                "messages": [
+                    {"nick": m.nick, "text": m.text, "timestamp": m.timestamp} for m in messages
+                ]
+            },
+        )
+
+    async def _ipc_irc_join(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        if not channel:
+            return make_response(req_id, ok=False, error="Missing 'channel'")
+        assert self._transport is not None
+        await self._transport.join_channel(channel)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_irc_part(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        if not channel:
+            return make_response(req_id, ok=False, error="Missing 'channel'")
+        assert self._transport is not None
+        await self._transport.part_channel(channel)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_irc_thread_create(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        thread_name = msg.get("thread", "")
+        text = msg.get("message", "")
+        if not channel or not thread_name or not text:
+            return make_response(
+                req_id, ok=False, error="Missing 'channel', 'thread', or 'message'"
+            )
+        assert self._transport is not None
+        await self._transport.send_thread_create(channel, thread_name, text)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_irc_thread_reply(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        thread_name = msg.get("thread", "")
+        text = msg.get("message", "")
+        if not channel or not thread_name or not text:
+            return make_response(
+                req_id, ok=False, error="Missing 'channel', 'thread', or 'message'"
+            )
+        assert self._transport is not None
+        await self._transport.send_thread_reply(channel, thread_name, text)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_irc_threads(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        if not channel:
+            return make_response(req_id, ok=False, error="Missing 'channel'")
+        assert self._transport is not None
+        await self._transport.send_threads_list(channel)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_irc_thread_close(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        thread_name = msg.get("thread", "")
+        summary = msg.get("summary", "")
+        if not channel or not thread_name:
+            return make_response(req_id, ok=False, error="Missing 'channel' or 'thread'")
+        assert self._transport is not None
+        await self._transport.send_thread_close(channel, thread_name, summary)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_irc_thread_read(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        thread_name = msg.get("thread", "")
+        limit = int(msg.get("limit", 50))
+        if not channel or not thread_name:
+            return make_response(req_id, ok=False, error="Missing 'channel' or 'thread'")
+        assert self._buffer is not None
+        messages = self._buffer.read_thread(channel, thread_name, limit=limit)
+        return make_response(
+            req_id,
+            ok=True,
+            data={
+                "messages": [
+                    {"nick": m.nick, "text": m.text, "timestamp": m.timestamp, "thread": m.thread}
+                    for m in messages
+                ]
+            },
+        )
+
+    async def _ipc_irc_channels(self, req_id: str) -> dict:
+        assert self._transport is not None
+        return make_response(req_id, ok=True, data={"channels": self._transport.channels})
+
+    async def _ipc_irc_who(self, req_id: str, msg: dict) -> dict:
+        target = msg.get("target", "")
+        if not target:
+            return make_response(req_id, ok=False, error="Missing 'target'")
+        assert self._transport is not None
+        await self._transport.send_who(target)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_irc_ask(self, req_id: str, msg: dict) -> dict:
+        """Send a PRIVMSG and fire a question webhook. Response matching is TODO."""
+        channel = msg.get("channel", "")
+        question = msg.get("message", "")
+        if not channel:
+            return make_response(req_id, ok=False, error="Missing 'channel'")
+        if not question:
+            return make_response(req_id, ok=False, error="Missing 'message'")
+        assert self._transport is not None
+        await self._transport.send_privmsg(channel, question)
+        if self._webhook:
+            await self._webhook.fire(
+                AlertEvent(
+                    event_type="agent_question",
+                    nick=self.agent.nick,
+                    message=f"[QUESTION] [{self.agent.nick}] asked in {channel}: {question}",
+                )
+            )
+        # Response matching is TODO
+        return make_response(req_id, ok=True)
+
+    async def _ipc_compact(self, req_id: str) -> dict:
+        if self._agent_runner is None or not self._agent_runner.is_running():
+            return make_response(req_id, ok=False, error="Agent runner is not running")
+        await self._agent_runner.send_prompt("/compact")
+        return make_response(req_id, ok=True)
+
+    async def _ipc_clear(self, req_id: str) -> dict:
+        if self._agent_runner is None or not self._agent_runner.is_running():
+            return make_response(req_id, ok=False, error="Agent runner is not running")
+        await self._agent_runner.send_prompt("/clear")
+        return make_response(req_id, ok=True)

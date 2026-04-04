@@ -1,11 +1,13 @@
 """Tests for rooms management."""
+
 import asyncio
+
 import pytest
 
 
 def test_channel_has_room_metadata_fields():
     """Channel should have room metadata fields, all None/empty by default."""
-    from agentirc.server.channel import Channel
+    from culture.server.channel import Channel
 
     ch = Channel("#test")
     assert ch.room_id is None
@@ -23,7 +25,7 @@ def test_channel_has_room_metadata_fields():
 
 def test_channel_is_managed():
     """Channel with room_id is considered managed."""
-    from agentirc.server.channel import Channel
+    from culture.server.channel import Channel
 
     ch = Channel("#test")
     assert ch.is_managed is False
@@ -33,8 +35,9 @@ def test_channel_is_managed():
 
 def test_generate_room_id_format():
     """Room ID starts with R followed by uppercase alphanumeric."""
-    from agentirc.server.rooms_util import generate_room_id
     import re
+
+    from culture.server.rooms_util import generate_room_id
 
     rid = generate_room_id()
     assert rid.startswith("R")
@@ -44,7 +47,7 @@ def test_generate_room_id_format():
 
 def test_generate_room_id_uniqueness():
     """Two consecutive calls produce different IDs."""
-    from agentirc.server.rooms_util import generate_room_id
+    from culture.server.rooms_util import generate_room_id
 
     ids = {generate_room_id() for _ in range(100)}
     assert len(ids) == 100
@@ -52,7 +55,7 @@ def test_generate_room_id_uniqueness():
 
 def test_parse_room_meta_basic():
     """Parse key=value pairs separated by semicolons."""
-    from agentirc.server.rooms_util import parse_room_meta
+    from culture.server.rooms_util import parse_room_meta
 
     meta = parse_room_meta("purpose=Help with Python;tags=python,code-help;persistent=true")
     assert meta["purpose"] == "Help with Python"
@@ -62,11 +65,9 @@ def test_parse_room_meta_basic():
 
 def test_parse_room_meta_instructions_last():
     """Instructions field is always last and may contain semicolons."""
-    from agentirc.server.rooms_util import parse_room_meta
+    from culture.server.rooms_util import parse_room_meta
 
-    meta = parse_room_meta(
-        "purpose=Help;tags=py;instructions=Do this; then that; finally done"
-    )
+    meta = parse_room_meta("purpose=Help;tags=py;instructions=Do this; then that; finally done")
     assert meta["purpose"] == "Help"
     assert meta["tags"] == "py"
     assert meta["instructions"] == "Do this; then that; finally done"
@@ -74,7 +75,7 @@ def test_parse_room_meta_instructions_last():
 
 def test_parse_room_meta_empty():
     """Empty string returns empty dict."""
-    from agentirc.server.rooms_util import parse_room_meta
+    from culture.server.rooms_util import parse_room_meta
 
     assert parse_room_meta("") == {}
 
@@ -126,9 +127,7 @@ async def test_roomcreate_stores_metadata(server, make_client):
 async def test_roomcreate_with_instructions(server, make_client):
     """ROOMCREATE handles instructions field (may contain semicolons)."""
     alice = await make_client(nick="testserv-alice", user="alice")
-    await alice.send(
-        "ROOMCREATE #help :purpose=Help;tags=py;instructions=Do this; then that; done"
-    )
+    await alice.send("ROOMCREATE #help :purpose=Help;tags=py;instructions=Do this; then that; done")
     await alice.recv_all(timeout=1.0)
 
     channel = server.channels["#help"]
@@ -289,13 +288,13 @@ async def test_roommeta_on_plain_channel(server, make_client):
 async def test_tags_set_own(server, make_client):
     """Agent can set its own tags."""
     alice = await make_client(nick="testserv-alice", user="alice")
-    await alice.send("TAGS testserv-alice python,code-review,agentirc")
+    await alice.send("TAGS testserv-alice python,code-review,culture")
     lines = await alice.recv_all(timeout=1.0)
     joined = " ".join(lines)
     assert "TAGSSET" in joined
 
     client = server.clients["testserv-alice"]
-    assert client.tags == ["python", "code-review", "agentirc"]
+    assert client.tags == ["python", "code-review", "culture"]
 
 
 @pytest.mark.asyncio
@@ -488,9 +487,7 @@ async def test_roominvite_sends_context(server, make_client):
     alice = await make_client(nick="testserv-alice", user="alice")
     bob = await make_client(nick="testserv-bob", user="bob")
 
-    await alice.send(
-        "ROOMCREATE #pyhelp :purpose=Python help;tags=python;instructions=Be helpful"
-    )
+    await alice.send("ROOMCREATE #pyhelp :purpose=Python help;tags=python;instructions=Be helpful")
     await alice.recv_all(timeout=1.0)
 
     await alice.send("ROOMINVITE #pyhelp testserv-bob")
@@ -718,7 +715,7 @@ async def test_persistent_room_notifies_owner_when_empty(server, make_client):
 
 def test_agent_config_tags_field():
     """AgentConfig should have tags field."""
-    from agentirc.clients.claude.config import AgentConfig
+    from culture.clients.claude.config import AgentConfig
 
     config = AgentConfig(nick="spark-claude", channels=["#general"], tags=["python", "code-review"])
     assert config.tags == ["python", "code-review"]
@@ -726,7 +723,7 @@ def test_agent_config_tags_field():
 
 def test_agent_config_tags_default_empty():
     """AgentConfig tags defaults to empty list."""
-    from agentirc.clients.claude.config import AgentConfig
+    from culture.clients.claude.config import AgentConfig
 
     config = AgentConfig(nick="spark-claude")
     assert config.tags == []

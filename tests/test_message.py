@@ -1,4 +1,4 @@
-from agentirc.protocol.message import Message
+from culture.protocol.message import Message
 
 
 class TestMessageParse:
@@ -9,9 +9,9 @@ class TestMessageParse:
         assert msg.params == []
 
     def test_command_with_params(self):
-        msg = Message.parse("NICK spark-agentirc\r\n")
+        msg = Message.parse("NICK spark-culture\r\n")
         assert msg.command == "NICK"
-        assert msg.params == ["spark-agentirc"]
+        assert msg.params == ["spark-culture"]
 
     def test_command_with_trailing(self):
         msg = Message.parse("PRIVMSG #general :Hello world\r\n")
@@ -30,7 +30,7 @@ class TestMessageParse:
         assert msg.params == ["ori", "0", "*", "Ori Nachum"]
 
     def test_command_case_normalized(self):
-        msg = Message.parse("nick spark-agentirc\r\n")
+        msg = Message.parse("nick spark-culture\r\n")
         assert msg.command == "NICK"
 
     def test_no_trailing_crlf(self):
@@ -47,9 +47,9 @@ class TestMessageParse:
         assert msg.params == ["#general", ""]
 
     def test_multiple_middle_params(self):
-        msg = Message.parse("MODE #channel +o spark-agentirc\r\n")
+        msg = Message.parse("MODE #channel +o spark-culture\r\n")
         assert msg.command == "MODE"
-        assert msg.params == ["#channel", "+o", "spark-agentirc"]
+        assert msg.params == ["#channel", "+o", "spark-culture"]
 
 
 class TestMessageFormat:
@@ -70,8 +70,8 @@ class TestMessageFormat:
         assert msg.format() == "PRIVMSG #general :\r\n"
 
     def test_single_word_trailing(self):
-        msg = Message(prefix=None, command="NICK", params=["spark-agentirc"])
-        assert msg.format() == "NICK spark-agentirc\r\n"
+        msg = Message(prefix=None, command="NICK", params=["spark-culture"])
+        assert msg.format() == "NICK spark-culture\r\n"
 
     def test_roundtrip(self):
         original = ":spark-ori!ori@localhost PRIVMSG #general :Hello world"

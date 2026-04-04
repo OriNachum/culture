@@ -4,17 +4,17 @@ import pytest
 import pytest_asyncio
 from aiohttp import ClientSession
 
-from agentirc.bots.bot_manager import BotManager
-from agentirc.bots.config import BotConfig
-from agentirc.bots.http_listener import HttpListener
+from culture.bots.bot_manager import BotManager
+from culture.bots.config import BotConfig
+from culture.bots.http_listener import HttpListener
 
 
 @pytest_asyncio.fixture
 async def webhook_server(server, tmp_path, monkeypatch):
     """Start an IRC server with BotManager and HttpListener."""
-    monkeypatch.setattr("agentirc.bots.config.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot_manager.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.config.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot_manager.BOTS_DIR", tmp_path)
 
     mgr = BotManager(server)
     server.bot_manager = mgr

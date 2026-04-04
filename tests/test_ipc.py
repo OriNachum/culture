@@ -1,14 +1,13 @@
-import json
 import uuid
 
-from agentirc.clients.claude.ipc import (
-    encode_message,
+from culture.clients.claude.ipc import (
+    MSG_TYPE_RESPONSE,
+    MSG_TYPE_WHISPER,
     decode_message,
+    encode_message,
     make_request,
     make_response,
     make_whisper,
-    MSG_TYPE_RESPONSE,
-    MSG_TYPE_WHISPER,
 )
 
 

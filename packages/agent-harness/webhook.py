@@ -6,9 +6,9 @@ import json
 import logging
 import urllib.request
 from dataclasses import dataclass
-from typing import Callable, Awaitable
+from typing import Awaitable, Callable
 
-from agentirc.clients.BACKEND.config import WebhookConfig
+from culture.clients.BACKEND.config import WebhookConfig
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +21,9 @@ class AlertEvent:
 
 
 class WebhookClient:
-    def __init__(self, config: WebhookConfig,
-                 irc_send: Callable[[str, str], Awaitable[None]] | None = None):
+    def __init__(
+        self, config: WebhookConfig, irc_send: Callable[[str, str], Awaitable[None]] | None = None
+    ):
         self.config = config
         self.irc_send = irc_send
 
@@ -51,10 +52,14 @@ class WebhookClient:
 
     async def _http_post(self, event: AlertEvent) -> None:
         payload = json.dumps({"content": event.message}).encode()
+
         def _post():
             req = urllib.request.Request(
-                self.config.url, data=payload,
-                headers={"Content-Type": "application/json"}, method="POST",
+                self.config.url,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
             )
             urllib.request.urlopen(req, timeout=10)
+
         await asyncio.to_thread(_post)

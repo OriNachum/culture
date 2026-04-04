@@ -3,12 +3,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-from agentirc.clients.claude.agent_runner import AgentRunner
 
+from culture.clients.claude.agent_runner import AgentRunner
 
 # ---------------------------------------------------------------------------
 # Fake SDK message types for testing
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class FakeTextBlock:
@@ -44,17 +45,21 @@ class FakeResultMessage:
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_start_stop(monkeypatch):
     """AgentRunner starts a background task and stops cleanly."""
+
     async def fake_query(*, prompt, options=None, transport=None):
         # Yield one message then wait forever (agent idle)
         yield FakeResultMessage(session_id="sess-001")
         await asyncio.sleep(999)
 
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.query", fake_query)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.query", fake_query)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
+    monkeypatch.setattr(
+        "culture.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage
+    )
 
     runner = AgentRunner(model="test-model", directory="/tmp")
     runner._prompt_queue.put_nowait("hello")
@@ -76,9 +81,11 @@ async def test_on_exit_clean(monkeypatch):
     async def fake_query(*, prompt, options=None, transport=None):
         yield FakeResultMessage(session_id="sess-002")
 
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.query", fake_query)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.query", fake_query)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
+    monkeypatch.setattr(
+        "culture.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage
+    )
 
     runner = AgentRunner(model="test-model", directory="/tmp", on_exit=on_exit)
     runner._prompt_queue.put_nowait("go")
@@ -104,9 +111,11 @@ async def test_on_exit_crash(monkeypatch):
         raise RuntimeError("SDK error")
         yield  # make it an async generator  # noqa: F841
 
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.query", fake_query)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.query", fake_query)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
+    monkeypatch.setattr(
+        "culture.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage
+    )
 
     runner = AgentRunner(model="test-model", directory="/tmp", on_exit=on_exit)
     runner._prompt_queue.put_nowait("go")
@@ -125,9 +134,11 @@ async def test_send_prompt(monkeypatch):
         prompts_seen.append(prompt)
         yield FakeResultMessage(session_id="sess-003")
 
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.query", fake_query)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.query", fake_query)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
+    monkeypatch.setattr(
+        "culture.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage
+    )
 
     runner = AgentRunner(model="test-model", directory="/tmp")
     await runner.send_prompt("first prompt")
@@ -155,12 +166,16 @@ async def test_on_message_callback(monkeypatch):
         yield msg
         yield FakeResultMessage(session_id="sess-004")
 
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.query", fake_query)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.query", fake_query)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
+    monkeypatch.setattr(
+        "culture.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage
+    )
 
     runner = AgentRunner(
-        model="test-model", directory="/tmp", on_message=on_message,
+        model="test-model",
+        directory="/tmp",
+        on_message=on_message,
     )
     runner._prompt_queue.put_nowait("go")
     await runner.start()
@@ -175,13 +190,16 @@ async def test_on_message_callback(monkeypatch):
 @pytest.mark.asyncio
 async def test_session_id_captured(monkeypatch):
     """session_id is set from ResultMessage."""
+
     async def fake_query(*, prompt, options=None, transport=None):
         yield FakeResultMessage(session_id="sess-captured-789")
         await asyncio.sleep(999)
 
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.query", fake_query)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
-    monkeypatch.setattr("agentirc.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.query", fake_query)
+    monkeypatch.setattr("culture.clients.claude.agent_runner.ResultMessage", FakeResultMessage)
+    monkeypatch.setattr(
+        "culture.clients.claude.agent_runner.AssistantMessage", FakeAssistantMessage
+    )
 
     runner = AgentRunner(model="test-model", directory="/tmp")
     runner._prompt_queue.put_nowait("go")

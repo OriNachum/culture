@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 import pytest_asyncio
 
-from agentirc.server.config import LinkConfig, ServerConfig
-from agentirc.server.ircd import IRCd
+from culture.server.config import LinkConfig, ServerConfig
+from culture.server.ircd import IRCd
 
 
 class IRCTestClient:
@@ -49,14 +49,14 @@ class IRCTestClient:
 @pytest_asyncio.fixture
 async def server(tmp_path):
     # Isolate bot loading to an empty temp directory so tests
-    # never read/write the real ~/.agentirc/bots/ directory.
+    # never read/write the real ~/.culture/bots/ directory.
     empty_bots = tmp_path / "_bots"
     empty_bots.mkdir()
     config = ServerConfig(name="testserv", host="127.0.0.1", port=0, webhook_port=0)
     with (
-        patch("agentirc.bots.bot_manager.BOTS_DIR", empty_bots),
-        patch("agentirc.bots.config.BOTS_DIR", empty_bots),
-        patch("agentirc.bots.bot.BOTS_DIR", empty_bots),
+        patch("culture.bots.bot_manager.BOTS_DIR", empty_bots),
+        patch("culture.bots.config.BOTS_DIR", empty_bots),
+        patch("culture.bots.bot.BOTS_DIR", empty_bots),
     ):
         ircd = IRCd(config)
         await ircd.start()
@@ -118,9 +118,9 @@ async def linked_servers(tmp_path):
     server_b = IRCd(config_b)
 
     with (
-        patch("agentirc.bots.bot_manager.BOTS_DIR", empty_bots),
-        patch("agentirc.bots.config.BOTS_DIR", empty_bots),
-        patch("agentirc.bots.bot.BOTS_DIR", empty_bots),
+        patch("culture.bots.bot_manager.BOTS_DIR", empty_bots),
+        patch("culture.bots.config.BOTS_DIR", empty_bots),
+        patch("culture.bots.bot.BOTS_DIR", empty_bots),
     ):
         await server_a.start()
         await server_b.start()

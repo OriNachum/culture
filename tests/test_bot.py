@@ -2,8 +2,8 @@
 
 import pytest
 
-from agentirc.bots.bot import Bot
-from agentirc.bots.config import BotConfig
+from culture.bots.bot import Bot
+from culture.bots.config import BotConfig
 
 
 @pytest.fixture

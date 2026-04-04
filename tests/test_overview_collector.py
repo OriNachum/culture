@@ -1,10 +1,11 @@
 """Tests for overview collector against a real IRC server."""
-import asyncio
-import pytest
-import pytest_asyncio
 
-from agentirc.overview.collector import collect_mesh_state
-from agentirc.overview.model import MeshState
+import asyncio
+
+import pytest
+
+from culture.overview.collector import collect_mesh_state
+from culture.overview.model import MeshState
 
 
 @pytest.mark.asyncio

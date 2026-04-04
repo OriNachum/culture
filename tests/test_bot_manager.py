@@ -2,8 +2,8 @@
 
 import pytest
 
-from agentirc.bots.bot_manager import BotManager
-from agentirc.bots.config import BotConfig, save_bot_config
+from culture.bots.bot_manager import BotManager
+from culture.bots.config import BotConfig, save_bot_config
 
 
 @pytest.fixture
@@ -20,9 +20,9 @@ def sample_config():
 
 @pytest.mark.asyncio
 async def test_create_bot(server, sample_config, tmp_path, monkeypatch):
-    monkeypatch.setattr("agentirc.bots.config.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot_manager.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.config.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot_manager.BOTS_DIR", tmp_path)
 
     mgr = BotManager(server)
     bot = await mgr.create_bot(sample_config)
@@ -34,8 +34,8 @@ async def test_create_bot(server, sample_config, tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_load_bots_from_disk(server, sample_config, tmp_path, monkeypatch):
-    monkeypatch.setattr("agentirc.bots.bot_manager.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot_manager.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot.BOTS_DIR", tmp_path)
 
     # Write config to disk
     bot_dir = tmp_path / sample_config.name
@@ -50,8 +50,8 @@ async def test_load_bots_from_disk(server, sample_config, tmp_path, monkeypatch)
 
 @pytest.mark.asyncio
 async def test_start_stop_bot(server, sample_config, tmp_path, monkeypatch):
-    monkeypatch.setattr("agentirc.bots.config.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.config.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot.BOTS_DIR", tmp_path)
 
     mgr = BotManager(server)
     bot = await mgr.create_bot(sample_config)
@@ -67,8 +67,8 @@ async def test_start_stop_bot(server, sample_config, tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_dispatch(server, make_client, sample_config, tmp_path, monkeypatch):
-    monkeypatch.setattr("agentirc.bots.config.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.config.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot.BOTS_DIR", tmp_path)
 
     client = await make_client("testserv-agent", "agent")
     await client.send("JOIN #test")
@@ -95,8 +95,8 @@ async def test_dispatch_unknown_bot(server):
 
 @pytest.mark.asyncio
 async def test_dispatch_stopped_bot(server, sample_config, tmp_path, monkeypatch):
-    monkeypatch.setattr("agentirc.bots.config.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.config.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot.BOTS_DIR", tmp_path)
 
     mgr = BotManager(server)
     await mgr.create_bot(sample_config)
@@ -108,8 +108,8 @@ async def test_dispatch_stopped_bot(server, sample_config, tmp_path, monkeypatch
 
 @pytest.mark.asyncio
 async def test_list_bots_with_owner(server, tmp_path, monkeypatch):
-    monkeypatch.setattr("agentirc.bots.config.BOTS_DIR", tmp_path)
-    monkeypatch.setattr("agentirc.bots.bot.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.config.BOTS_DIR", tmp_path)
+    monkeypatch.setattr("culture.bots.bot.BOTS_DIR", tmp_path)
 
     mgr = BotManager(server)
     await mgr.create_bot(

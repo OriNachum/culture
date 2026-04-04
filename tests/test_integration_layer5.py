@@ -1,15 +1,19 @@
 """End-to-end Layer 5 integration tests."""
+
 import asyncio
-import json
 import os
 import tempfile
+
 import pytest
 
-from agentirc.clients.claude.config import (
-    DaemonConfig, ServerConnConfig, AgentConfig, WebhookConfig,
+from culture.clients.claude.config import (
+    AgentConfig,
+    DaemonConfig,
+    ServerConnConfig,
+    WebhookConfig,
 )
-from agentirc.clients.claude.daemon import AgentDaemon
-from agentirc.clients.claude.skill.irc_client import SkillClient
+from culture.clients.claude.daemon import AgentDaemon
+from culture.clients.claude.skill.irc_client import SkillClient
 
 
 @pytest.mark.asyncio
@@ -27,7 +31,7 @@ async def test_full_send_receive_flow(server, make_client):
     human = await make_client(nick="testserv-ori", user="ori")
     await human.send("JOIN #general")
     await human.recv_all(timeout=0.3)
-    sock_path = os.path.join(sock_dir, "agentirc-testserv-bot.sock")
+    sock_path = os.path.join(sock_dir, "culture-testserv-bot.sock")
     skill = SkillClient(sock_path)
     await skill.connect()
     try:
@@ -57,7 +61,7 @@ async def test_join_part_via_skill(server):
     daemon = AgentDaemon(config, agent, socket_dir=sock_dir, skip_claude=True)
     await daemon.start()
     await asyncio.sleep(0.5)
-    sock_path = os.path.join(sock_dir, "agentirc-testserv-bot.sock")
+    sock_path = os.path.join(sock_dir, "culture-testserv-bot.sock")
     skill = SkillClient(sock_path)
     await skill.connect()
     try:
@@ -92,7 +96,7 @@ async def test_webhook_fires_on_question(server, make_client):
     watcher = await make_client(nick="testserv-watch", user="watch")
     await watcher.send("JOIN #alerts")
     await watcher.recv_all(timeout=0.3)
-    sock_path = os.path.join(sock_dir, "agentirc-testserv-bot.sock")
+    sock_path = os.path.join(sock_dir, "culture-testserv-bot.sock")
     skill = SkillClient(sock_path)
     await skill.connect()
     try:

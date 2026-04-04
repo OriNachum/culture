@@ -1,19 +1,22 @@
-import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-from agentirc.clients.claude.supervisor import Supervisor, SupervisorVerdict, make_sdk_evaluate_fn
+
+from culture.clients.claude.supervisor import Supervisor, SupervisorVerdict, make_sdk_evaluate_fn
 
 
 def test_verdict_parsing():
     assert SupervisorVerdict.parse("OK") == SupervisorVerdict(action="OK", message="")
     assert SupervisorVerdict.parse("CORRECTION You're spiraling") == SupervisorVerdict(
-        action="CORRECTION", message="You're spiraling")
+        action="CORRECTION", message="You're spiraling"
+    )
     assert SupervisorVerdict.parse("THINK_DEEPER This needs more thought") == SupervisorVerdict(
-        action="THINK_DEEPER", message="This needs more thought")
+        action="THINK_DEEPER", message="This needs more thought"
+    )
     assert SupervisorVerdict.parse("ESCALATION Still stuck") == SupervisorVerdict(
-        action="ESCALATION", message="Still stuck")
+        action="ESCALATION", message="Still stuck"
+    )
 
 
 def test_verdict_empty_defaults_to_ok():
@@ -28,13 +31,20 @@ def test_verdict_unknown_action_defaults_to_ok():
 @pytest.mark.asyncio
 async def test_rolling_window():
     whispers = []
+
     async def on_whisper(msg, wtype):
         whispers.append((msg, wtype))
+
     async def mock_eval(window, task):
         return SupervisorVerdict(action="OK", message="")
+
     sup = Supervisor(
-        window_size=5, eval_interval=3, escalation_threshold=3,
-        evaluate_fn=mock_eval, on_whisper=on_whisper, on_escalation=None,
+        window_size=5,
+        eval_interval=3,
+        escalation_threshold=3,
+        evaluate_fn=mock_eval,
+        on_whisper=on_whisper,
+        on_escalation=None,
         task_description="test task",
     )
     for i in range(6):
@@ -46,13 +56,20 @@ async def test_rolling_window():
 @pytest.mark.asyncio
 async def test_whisper_on_correction():
     whispers = []
+
     async def on_whisper(msg, wtype):
         whispers.append((msg, wtype))
+
     async def mock_eval(window, task):
         return SupervisorVerdict(action="CORRECTION", message="Stop retrying")
+
     sup = Supervisor(
-        window_size=20, eval_interval=2, escalation_threshold=3,
-        evaluate_fn=mock_eval, on_whisper=on_whisper, on_escalation=None,
+        window_size=20,
+        eval_interval=2,
+        escalation_threshold=3,
+        evaluate_fn=mock_eval,
+        on_whisper=on_whisper,
+        on_escalation=None,
         task_description="test task",
     )
     for i in range(2):
@@ -65,18 +82,27 @@ async def test_whisper_on_correction():
 async def test_escalation_after_threshold():
     whispers = []
     escalated = []
+
     async def on_whisper(msg, wtype):
         whispers.append((msg, wtype))
+
     async def on_escalation(msg):
         escalated.append(msg)
+
     call_count = 0
+
     async def mock_eval(window, task):
         nonlocal call_count
         call_count += 1
         return SupervisorVerdict(action="CORRECTION", message=f"Attempt {call_count}")
+
     sup = Supervisor(
-        window_size=20, eval_interval=1, escalation_threshold=3,
-        evaluate_fn=mock_eval, on_whisper=on_whisper, on_escalation=on_escalation,
+        window_size=20,
+        eval_interval=1,
+        escalation_threshold=3,
+        evaluate_fn=mock_eval,
+        on_whisper=on_whisper,
+        on_escalation=on_escalation,
         task_description="test task",
     )
     for i in range(3):
@@ -89,22 +115,33 @@ async def test_escalation_after_threshold():
 async def test_ok_resets_escalation_counter():
     whispers = []
     escalated = []
+
     async def on_whisper(msg, wtype):
         whispers.append((msg, wtype))
+
     async def on_escalation(msg):
         escalated.append(msg)
-    verdicts = iter([
-        SupervisorVerdict(action="CORRECTION", message="warn1"),
-        SupervisorVerdict(action="CORRECTION", message="warn2"),
-        SupervisorVerdict(action="OK", message=""),
-        SupervisorVerdict(action="CORRECTION", message="warn3"),
-        SupervisorVerdict(action="CORRECTION", message="warn4"),
-    ])
+
+    verdicts = iter(
+        [
+            SupervisorVerdict(action="CORRECTION", message="warn1"),
+            SupervisorVerdict(action="CORRECTION", message="warn2"),
+            SupervisorVerdict(action="OK", message=""),
+            SupervisorVerdict(action="CORRECTION", message="warn3"),
+            SupervisorVerdict(action="CORRECTION", message="warn4"),
+        ]
+    )
+
     async def mock_eval(window, task):
         return next(verdicts)
+
     sup = Supervisor(
-        window_size=20, eval_interval=1, escalation_threshold=3,
-        evaluate_fn=mock_eval, on_whisper=on_whisper, on_escalation=on_escalation,
+        window_size=20,
+        eval_interval=1,
+        escalation_threshold=3,
+        evaluate_fn=mock_eval,
+        on_whisper=on_whisper,
+        on_escalation=on_escalation,
         task_description="test task",
     )
     for i in range(5):
@@ -116,6 +153,7 @@ async def test_ok_resets_escalation_counter():
 # ---------------------------------------------------------------------------
 # SDK-based evaluate_fn tests
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class FakeTextBlock:
@@ -150,18 +188,17 @@ class FakeResultMessage:
 @pytest.mark.asyncio
 async def test_sdk_evaluate_fn_ok(monkeypatch):
     """SDK evaluate_fn parses OK verdict."""
+
     async def fake_query(*, prompt, options=None, transport=None):
         yield FakeAssistantMessage(content=[FakeTextBlock(text="OK")])
         yield FakeResultMessage()
 
-    monkeypatch.setattr("agentirc.clients.claude.supervisor.query", fake_query)
-    monkeypatch.setattr("agentirc.clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
-    monkeypatch.setattr("agentirc.clients.claude.supervisor.TextBlock", FakeTextBlock)
+    monkeypatch.setattr("culture.clients.claude.supervisor.query", fake_query)
+    monkeypatch.setattr("culture.clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("culture.clients.claude.supervisor.TextBlock", FakeTextBlock)
 
     evaluate = make_sdk_evaluate_fn()
-    verdict = await evaluate(
-        [{"type": "response", "content": "working"}], "test task"
-    )
+    verdict = await evaluate([{"type": "response", "content": "working"}], "test task")
     assert verdict.action == "OK"
     assert verdict.message == ""
 
@@ -169,20 +206,19 @@ async def test_sdk_evaluate_fn_ok(monkeypatch):
 @pytest.mark.asyncio
 async def test_sdk_evaluate_fn_correction(monkeypatch):
     """SDK evaluate_fn parses CORRECTION verdict."""
+
     async def fake_query(*, prompt, options=None, transport=None):
         yield FakeAssistantMessage(
             content=[FakeTextBlock(text="CORRECTION Stop retrying the same approach")]
         )
         yield FakeResultMessage()
 
-    monkeypatch.setattr("agentirc.clients.claude.supervisor.query", fake_query)
-    monkeypatch.setattr("agentirc.clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
-    monkeypatch.setattr("agentirc.clients.claude.supervisor.TextBlock", FakeTextBlock)
+    monkeypatch.setattr("culture.clients.claude.supervisor.query", fake_query)
+    monkeypatch.setattr("culture.clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("culture.clients.claude.supervisor.TextBlock", FakeTextBlock)
 
     evaluate = make_sdk_evaluate_fn()
-    verdict = await evaluate(
-        [{"type": "response", "content": "retrying"}], "fix bug"
-    )
+    verdict = await evaluate([{"type": "response", "content": "retrying"}], "fix bug")
     assert verdict.action == "CORRECTION"
     assert "Stop retrying" in verdict.message
 
@@ -190,20 +226,19 @@ async def test_sdk_evaluate_fn_correction(monkeypatch):
 @pytest.mark.asyncio
 async def test_sdk_evaluate_fn_escalation(monkeypatch):
     """SDK evaluate_fn parses ESCALATION verdict."""
+
     async def fake_query(*, prompt, options=None, transport=None):
         yield FakeAssistantMessage(
             content=[FakeTextBlock(text="ESCALATION Agent is stuck, human needed")]
         )
         yield FakeResultMessage()
 
-    monkeypatch.setattr("agentirc.clients.claude.supervisor.query", fake_query)
-    monkeypatch.setattr("agentirc.clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
-    monkeypatch.setattr("agentirc.clients.claude.supervisor.TextBlock", FakeTextBlock)
+    monkeypatch.setattr("culture.clients.claude.supervisor.query", fake_query)
+    monkeypatch.setattr("culture.clients.claude.supervisor.AssistantMessage", FakeAssistantMessage)
+    monkeypatch.setattr("culture.clients.claude.supervisor.TextBlock", FakeTextBlock)
 
     evaluate = make_sdk_evaluate_fn()
-    verdict = await evaluate(
-        [{"type": "response", "content": "stuck"}], "deploy fix"
-    )
+    verdict = await evaluate([{"type": "response", "content": "stuck"}], "deploy fix")
     assert verdict.action == "ESCALATION"
     assert "human needed" in verdict.message
 
@@ -211,11 +246,12 @@ async def test_sdk_evaluate_fn_escalation(monkeypatch):
 @pytest.mark.asyncio
 async def test_sdk_evaluate_fn_error_handling(monkeypatch):
     """SDK evaluate_fn raises on query failure (caught by Supervisor._evaluate)."""
+
     async def fake_query(*, prompt, options=None, transport=None):
         raise RuntimeError("API error")
         yield  # noqa: F841
 
-    monkeypatch.setattr("agentirc.clients.claude.supervisor.query", fake_query)
+    monkeypatch.setattr("culture.clients.claude.supervisor.query", fake_query)
 
     evaluate = make_sdk_evaluate_fn()
     with pytest.raises(RuntimeError, match="API error"):

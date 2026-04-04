@@ -2,16 +2,18 @@ import asyncio
 import json
 import os
 import tempfile
+
 import pytest
 
-from agentirc.clients.claude.ipc import make_response, make_whisper, encode_message
-from agentirc.clients.claude.skill.irc_client import SkillClient
+from culture.clients.claude.ipc import encode_message, make_response, make_whisper
+from culture.clients.claude.skill.irc_client import SkillClient
 
 
 @pytest.mark.asyncio
 async def test_skill_client_send():
     sock_dir = tempfile.mkdtemp()
     sock_path = os.path.join(sock_dir, "test-agent.sock")
+
     async def mock_handler(reader, writer):
         data = await reader.readline()
         msg = json.loads(data)
@@ -19,6 +21,7 @@ async def test_skill_client_send():
         writer.write(encode_message(resp))
         await writer.drain()
         writer.close()
+
     srv = await asyncio.start_unix_server(mock_handler, path=sock_path)
     try:
         client = SkillClient(sock_path)
@@ -36,15 +39,19 @@ async def test_skill_client_send():
 async def test_skill_client_read():
     sock_dir = tempfile.mkdtemp()
     sock_path = os.path.join(sock_dir, "test-agent.sock")
+
     async def mock_handler(reader, writer):
         data = await reader.readline()
         msg = json.loads(data)
-        resp = make_response(msg["id"], ok=True, data={
-            "messages": [{"nick": "ori", "text": "hello", "timestamp": 123.0}]
-        })
+        resp = make_response(
+            msg["id"],
+            ok=True,
+            data={"messages": [{"nick": "ori", "text": "hello", "timestamp": 123.0}]},
+        )
         writer.write(encode_message(resp))
         await writer.drain()
         writer.close()
+
     srv = await asyncio.start_unix_server(mock_handler, path=sock_path)
     try:
         client = SkillClient(sock_path)
@@ -63,6 +70,7 @@ async def test_skill_client_read():
 async def test_skill_client_queues_whispers():
     sock_dir = tempfile.mkdtemp()
     sock_path = os.path.join(sock_dir, "test-agent.sock")
+
     async def mock_handler(reader, writer):
         whisper = make_whisper("Stop retrying", "CORRECTION")
         writer.write(encode_message(whisper))
@@ -73,6 +81,7 @@ async def test_skill_client_queues_whispers():
         writer.write(encode_message(resp))
         await writer.drain()
         writer.close()
+
     srv = await asyncio.start_unix_server(mock_handler, path=sock_path)
     try:
         client = SkillClient(sock_path)

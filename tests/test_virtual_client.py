@@ -2,7 +2,7 @@
 
 import pytest
 
-from agentirc.bots.virtual_client import VirtualClient
+from culture.bots.virtual_client import VirtualClient
 
 
 @pytest.mark.asyncio
@@ -122,7 +122,7 @@ async def test_bot_not_auto_promoted_to_operator(server, make_client):
 @pytest.mark.asyncio
 async def test_bot_send_is_noop(server):
     """VirtualClient.send() should silently succeed (no-op)."""
-    from agentirc.protocol.message import Message
+    from culture.protocol.message import Message
 
     bot = VirtualClient("testserv-ori-bot", "bot", server)
     msg = Message(prefix="someone", command="PRIVMSG", params=["bot", "hello"])

@@ -4,13 +4,11 @@
 import sys
 from unittest.mock import patch
 
-import pytest
-
-from agentirc.persistence import (
-    get_platform,
-    _build_systemd_unit,
+from culture.persistence import (
     _build_launchd_plist,
+    _build_systemd_unit,
     _build_windows_bat,
+    get_platform,
     install_service,
     list_services,
 )
@@ -33,36 +31,36 @@ def test_get_platform_windows():
 
 def test_build_systemd_unit():
     unit = _build_systemd_unit(
-        name="agentirc-server-spark",
-        command=["agentirc", "server", "start", "--foreground", "--name", "spark"],
-        description="agentirc server spark",
+        name="culture-server-spark",
+        command=["culture", "server", "start", "--foreground", "--name", "spark"],
+        description="culture server spark",
     )
     assert "[Unit]" in unit
-    assert "Description=agentirc server spark" in unit
-    assert "ExecStart=agentirc server start --foreground --name spark" in unit
+    assert "Description=culture server spark" in unit
+    assert "ExecStart=culture server start --foreground --name spark" in unit
     assert "Restart=on-failure" in unit
     assert "WantedBy=default.target" in unit
 
 
 def test_build_launchd_plist():
     plist = _build_launchd_plist(
-        name="com.agentirc.server-spark",
-        command=["agentirc", "server", "start", "--foreground", "--name", "spark"],
-        description="agentirc server spark",
+        name="com.culture.server-spark",
+        command=["culture", "server", "start", "--foreground", "--name", "spark"],
+        description="culture server spark",
     )
     assert "<key>Label</key>" in plist
-    assert "com.agentirc.server-spark" in plist
-    assert "<string>agentirc</string>" in plist
+    assert "com.culture.server-spark" in plist
+    assert "<string>culture</string>" in plist
     assert "<key>KeepAlive</key>" in plist
     assert "<true/>" in plist
 
 
 def test_build_windows_bat():
     bat = _build_windows_bat(
-        command=["agentirc", "server", "start", "--foreground", "--name", "spark"],
+        command=["culture", "server", "start", "--foreground", "--name", "spark"],
     )
     assert ":loop" in bat
-    assert "agentirc server start --foreground --name spark" in bat
+    assert "culture server start --foreground --name spark" in bat
     assert "if %ERRORLEVEL% EQU 0 goto end" in bat
     assert "timeout /t 5" in bat
     assert "goto loop" in bat
@@ -72,16 +70,18 @@ def test_build_windows_bat():
 def test_install_service_linux(tmp_path):
     """Install writes a systemd unit file and returns its path."""
     unit_dir = tmp_path / "systemd" / "user"
-    with patch("agentirc.persistence.get_platform", return_value="linux"), \
-         patch("agentirc.persistence._systemd_user_dir", return_value=unit_dir), \
-         patch("agentirc.persistence._run_cmd"):
+    with (
+        patch("culture.persistence.get_platform", return_value="linux"),
+        patch("culture.persistence._systemd_user_dir", return_value=unit_dir),
+        patch("culture.persistence._run_cmd"),
+    ):
         path = install_service(
-            "agentirc-server-spark",
-            ["agentirc", "server", "start", "--foreground", "--name", "spark"],
-            "agentirc server spark",
+            "culture-server-spark",
+            ["culture", "server", "start", "--foreground", "--name", "spark"],
+            "culture server spark",
         )
     assert path.exists()
-    assert path.name == "agentirc-server-spark.service"
+    assert path.name == "culture-server-spark.service"
     content = path.read_text()
     assert "ExecStart=" in content
 
@@ -90,14 +90,16 @@ def test_list_services_linux(tmp_path):
     """list_services returns installed service names."""
     unit_dir = tmp_path / "systemd" / "user"
     unit_dir.mkdir(parents=True)
-    (unit_dir / "agentirc-server-spark.service").write_text("[Unit]\n")
-    (unit_dir / "agentirc-agent-spark-claude.service").write_text("[Unit]\n")
+    (unit_dir / "culture-server-spark.service").write_text("[Unit]\n")
+    (unit_dir / "culture-agent-spark-claude.service").write_text("[Unit]\n")
     (unit_dir / "unrelated.service").write_text("[Unit]\n")
 
-    with patch("agentirc.persistence.get_platform", return_value="linux"), \
-         patch("agentirc.persistence._systemd_user_dir", return_value=unit_dir):
+    with (
+        patch("culture.persistence.get_platform", return_value="linux"),
+        patch("culture.persistence._systemd_user_dir", return_value=unit_dir),
+    ):
         services = list_services()
 
-    assert "agentirc-server-spark" in services
-    assert "agentirc-agent-spark-claude" in services
+    assert "culture-server-spark" in services
+    assert "culture-agent-spark-claude" in services
     assert "unrelated" not in services

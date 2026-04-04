@@ -1,7 +1,7 @@
 # tests/test_setup_update_cli.py
 """Lightweight parser tests for setup and update subcommands."""
 
-from agentirc.cli import _build_parser
+from culture.cli import _build_parser
 
 
 def test_setup_parser():
@@ -29,7 +29,8 @@ def test_update_parser():
 
 def test_setup_in_dispatch():
     """setup command is wired into the dispatch table."""
-    from agentirc import cli
+    from culture import cli
+
     # The dispatch dict is built inside main(), so check the function exists
     assert hasattr(cli, "_cmd_setup")
     assert callable(cli._cmd_setup)
@@ -37,6 +38,7 @@ def test_setup_in_dispatch():
 
 def test_update_in_dispatch():
     """update command is wired into the dispatch table."""
-    from agentirc import cli
+    from culture import cli
+
     assert hasattr(cli, "_cmd_update")
     assert callable(cli._cmd_update)

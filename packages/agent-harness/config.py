@@ -12,7 +12,8 @@ import yaml
 @dataclass
 class ServerConnConfig:
     """IRC server connection settings."""
-    name: str = "agentirc"
+
+    name: str = "culture"
     host: str = "localhost"
     port: int = 6667
 
@@ -20,6 +21,7 @@ class ServerConnConfig:
 @dataclass
 class SupervisorConfig:
     """Supervisor sub-agent settings."""
+
     model: str = "claude-sonnet-4-6"
     thinking: str = "medium"
     window_size: int = 20
@@ -31,17 +33,24 @@ class SupervisorConfig:
 @dataclass
 class WebhookConfig:
     """Webhook alerting settings."""
+
     url: str | None = None
     irc_channel: str = "#alerts"
-    events: list[str] = field(default_factory=lambda: [
-        "agent_spiraling", "agent_error", "agent_question",
-        "agent_timeout", "agent_complete",
-    ])
+    events: list[str] = field(
+        default_factory=lambda: [
+            "agent_spiraling",
+            "agent_error",
+            "agent_question",
+            "agent_timeout",
+            "agent_complete",
+        ]
+    )
 
 
 @dataclass
 class AgentConfig:
     """Per-agent settings."""
+
     nick: str = ""
     directory: str = "."
     channels: list[str] = field(default_factory=lambda: ["#general"])
@@ -53,6 +62,7 @@ class AgentConfig:
 @dataclass
 class DaemonConfig:
     """Top-level daemon configuration."""
+
     server: ServerConnConfig = field(default_factory=ServerConnConfig)
     supervisor: SupervisorConfig = field(default_factory=SupervisorConfig)
     webhooks: WebhookConfig = field(default_factory=WebhookConfig)
@@ -126,7 +136,8 @@ def save_config(path: str | Path, config: DaemonConfig) -> None:
 
     # Atomic write: write to temp file in same dir, then rename
     fd, tmp_path = tempfile.mkstemp(
-        dir=str(path.parent), suffix=".yaml.tmp",
+        dir=str(path.parent),
+        suffix=".yaml.tmp",
     )
     try:
         with os.fdopen(fd, "w") as f:
@@ -159,9 +170,7 @@ def add_agent_to_config(
     # Check for nick collision
     for existing in config.agents:
         if existing.nick == agent.nick:
-            raise ValueError(
-                f"agent with nick {agent.nick!r} already exists in config"
-            )
+            raise ValueError(f"agent with nick {agent.nick!r} already exists in config")
 
     config.agents.append(agent)
     save_config(path, config)

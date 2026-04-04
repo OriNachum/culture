@@ -1,11 +1,12 @@
 """Tests for overview data model."""
-from datetime import datetime, timezone
 
-from agentirc.overview.model import Agent, Message, MeshState, Room
+from culture.overview.model import Agent, MeshState, Message, Room
 
 
 def test_message_creation():
-    msg = Message(nick="spark-claude", text="hello world", timestamp=1711785600.0, channel="#general")
+    msg = Message(
+        nick="spark-claude", text="hello world", timestamp=1711785600.0, channel="#general"
+    )
     assert msg.nick == "spark-claude"
     assert msg.text == "hello world"
     assert msg.channel == "#general"
@@ -20,7 +21,7 @@ def test_agent_local():
         server="spark",
         backend="claude",
         model="claude-opus-4-6",
-        directory="/home/spark/git/agentirc",
+        directory="/home/spark/git/culture",
         turns=142,
         uptime="3h 22m",
     )
@@ -54,8 +55,17 @@ def test_room_creation():
 
 
 def test_mesh_state():
-    agent = Agent(nick="spark-claude", status="active", activity="", channels=["#general"], server="spark")
-    room = Room(name="#general", topic="test", members=[agent], operators=[], federation_servers=[], messages=[])
+    agent = Agent(
+        nick="spark-claude", status="active", activity="", channels=["#general"], server="spark"
+    )
+    room = Room(
+        name="#general",
+        topic="test",
+        members=[agent],
+        operators=[],
+        federation_servers=[],
+        messages=[],
+    )
     mesh = MeshState(server_name="spark", rooms=[room], agents=[agent], federation_links=[])
     assert mesh.server_name == "spark"
     assert len(mesh.rooms) == 1
@@ -64,7 +74,7 @@ def test_mesh_state():
 
 def test_room_has_tags_and_metadata():
     """Room dataclass should have tags, room_id, owner, purpose fields."""
-    from agentirc.overview.model import Room
+    from culture.overview.model import Room
 
     room = Room(
         name="#pyhelp",
@@ -88,7 +98,7 @@ def test_room_has_tags_and_metadata():
 
 def test_agent_has_tags():
     """Agent dataclass should have tags field."""
-    from agentirc.overview.model import Agent
+    from culture.overview.model import Agent
 
     agent = Agent(
         nick="spark-claude",
@@ -103,11 +113,15 @@ def test_agent_has_tags():
 
 def test_room_defaults_no_metadata():
     """Room with only required fields defaults metadata to None/empty."""
-    from agentirc.overview.model import Room
+    from culture.overview.model import Room
 
     room = Room(
-        name="#plain", topic="", members=[], operators=[],
-        federation_servers=[], messages=[],
+        name="#plain",
+        topic="",
+        members=[],
+        operators=[],
+        federation_servers=[],
+        messages=[],
     )
     assert room.room_id is None
     assert room.tags == []

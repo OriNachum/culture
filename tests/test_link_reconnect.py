@@ -5,8 +5,8 @@ import asyncio
 
 import pytest
 
-from agentirc.server.config import LinkConfig, ServerConfig
-from agentirc.server.ircd import IRCd
+from culture.server.config import LinkConfig, ServerConfig
+from culture.server.ircd import IRCd
 
 
 @pytest.mark.asyncio

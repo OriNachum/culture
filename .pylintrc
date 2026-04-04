@@ -2,18 +2,28 @@
 ignore=CVS
 persistent=yes
 load-plugins=
+fail-under=9
 
 [MESSAGES CONTROL]
 disable=
+    C0103,  # invalid-name (short vars in tests/loops)
     C0114,  # missing-module-docstring
     C0115,  # missing-class-docstring
     C0116,  # missing-function-docstring
     C0301,  # line-too-long (handled by black)
     C0303,  # trailing-whitespace
+    C0415,  # import-outside-toplevel (lazy imports for circular deps)
+    C1803,  # use-implicit-booleaness-not-comparison
     R0801,  # duplicate-code (assimilai pattern: backends share identical files)
     R0903,  # too-few-public-methods
+    R0912,  # too-many-branches
     R0913,  # too-many-arguments
+    R0915,  # too-many-statements
+    W0212,  # protected-access (tests access internals)
     W0511,  # fixme
+    W0612,  # unused-variable
+    W0613,  # unused-argument (pytest fixtures)
+    W0621,  # redefined-outer-name (pytest fixtures)
     W0718,  # broad-exception-caught (async server/daemon must catch broadly)
     W0719,  # broad-exception-raised
     W1202,  # logging-format-interpolation

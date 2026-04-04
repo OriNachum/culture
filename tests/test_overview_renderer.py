@@ -1,46 +1,72 @@
 """Tests for overview text renderer."""
-from agentirc.overview.model import Agent, Message, MeshState, Room
-from agentirc.overview.renderer_text import render_text
+
 import time
+
+from culture.overview.model import Agent, MeshState, Message, Room
+from culture.overview.renderer_text import render_text
 
 
 def _make_fixture() -> MeshState:
     """Build a realistic MeshState for testing."""
     now = time.time()
     spark_claude = Agent(
-        nick="spark-claude", status="active", activity="working on: PR #47 review",
-        channels=["#general", "#dev"], server="spark",
-        backend="claude", model="claude-opus-4-6",
-        directory="/home/spark/git/agentirc", turns=142, uptime="3h 22m",
+        nick="spark-claude",
+        status="active",
+        activity="working on: PR #47 review",
+        channels=["#general", "#dev"],
+        server="spark",
+        backend="claude",
+        model="claude-opus-4-6",
+        directory="/home/spark/git/culture",
+        turns=142,
+        uptime="3h 22m",
     )
     spark_codex = Agent(
-        nick="spark-codex", status="idle", activity="idle since 15m",
-        channels=["#dev"], server="spark",
-        backend="codex", model="codex", directory="/home/spark/git/project", turns=30, uptime="1h 5m",
+        nick="spark-codex",
+        status="idle",
+        activity="idle since 15m",
+        channels=["#dev"],
+        server="spark",
+        backend="codex",
+        model="codex",
+        directory="/home/spark/git/project",
+        turns=30,
+        uptime="1h 5m",
     )
     thor_claude = Agent(
-        nick="thor-claude", status="remote", activity="",
-        channels=["#general"], server="thor",
+        nick="thor-claude",
+        status="remote",
+        activity="",
+        channels=["#general"],
+        server="thor",
     )
 
     general_msgs = [
-        Message(nick="spark-claude", text="I've pushed the fix", timestamp=now - 120, channel="#general"),
-        Message(nick="thor-claude", text="looks good, approved", timestamp=now - 240, channel="#general"),
+        Message(
+            nick="spark-claude", text="I've pushed the fix", timestamp=now - 120, channel="#general"
+        ),
+        Message(
+            nick="thor-claude", text="looks good, approved", timestamp=now - 240, channel="#general"
+        ),
     ]
     dev_msgs = [
         Message(nick="spark-claude", text="tests passing", timestamp=now - 1200, channel="#dev"),
     ]
 
     general = Room(
-        name="#general", topic="Agent coordination & planning",
+        name="#general",
+        topic="Agent coordination & planning",
         members=[spark_claude, thor_claude],
-        operators=["spark-claude"], federation_servers=["thor"],
+        operators=["spark-claude"],
+        federation_servers=["thor"],
         messages=general_msgs,
     )
     dev = Room(
-        name="#dev", topic="agentirc development",
+        name="#dev",
+        topic="culture development",
         members=[spark_claude, spark_codex],
-        operators=[], federation_servers=[],
+        operators=[],
+        federation_servers=[],
         messages=dev_msgs,
     )
 
@@ -81,7 +107,7 @@ def test_default_view_has_topic():
     mesh = _make_fixture()
     output = render_text(mesh)
     assert "Topic: Agent coordination & planning" in output
-    assert "Topic: agentirc development" in output
+    assert "Topic: culture development" in output
 
 
 def test_default_view_has_messages():
@@ -96,8 +122,13 @@ def test_default_view_message_limit():
     """Default shows 4 messages max per room."""
     now = time.time()
     agent = Agent(nick="a", status="active", activity="", channels=["#test"], server="s")
-    msgs = [Message(nick="a", text=f"msg {i}", timestamp=now - i * 60, channel="#test") for i in range(10)]
-    room = Room(name="#test", topic="", members=[agent], operators=[], federation_servers=[], messages=msgs)
+    msgs = [
+        Message(nick="a", text=f"msg {i}", timestamp=now - i * 60, channel="#test")
+        for i in range(10)
+    ]
+    room = Room(
+        name="#test", topic="", members=[agent], operators=[], federation_servers=[], messages=msgs
+    )
     mesh = MeshState(server_name="s", rooms=[room], agents=[agent], federation_links=[])
     output = render_text(mesh)
     # Should only contain 4 messages (the most recent)
@@ -134,7 +165,7 @@ def test_agent_drilldown():
     assert output.startswith("# spark-claude\n")
     assert "| Backend | claude |" in output
     assert "| Model | claude-opus-4-6 |" in output
-    assert "| Directory | /home/spark/git/agentirc |" in output
+    assert "| Directory | /home/spark/git/culture |" in output
     assert "| Turns | 142 |" in output
     assert "| Uptime | 3h 22m |" in output
     # Channels table
@@ -155,6 +186,10 @@ def test_custom_message_limit():
     mesh = _make_fixture()
     output = render_text(mesh, message_limit=1)
     # #general has 2 messages, should only show 1
-    lines = [l for l in output.split("\n") if l.startswith("- spark-claude (") or l.startswith("- thor-claude (")]
+    lines = [
+        l
+        for l in output.split("\n")
+        if l.startswith("- spark-claude (") or l.startswith("- thor-claude (")
+    ]
     # 1 per room: #general gets 1, #dev gets 1
     assert len(lines) == 2
