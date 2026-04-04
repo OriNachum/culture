@@ -2,7 +2,7 @@
 
 import pytest
 
-from agentirc.bots.config import BotConfig, load_bot_config, save_bot_config
+from culture.bots.config import BotConfig, load_bot_config, save_bot_config
 
 
 @pytest.fixture

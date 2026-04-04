@@ -1,11 +1,9 @@
 """Tests for daemon IPC status, pause, and resume handlers."""
 
-import asyncio
 import pytest
 
-from agentirc.clients.claude.config import AgentConfig, DaemonConfig
-from agentirc.clients.claude.daemon import AgentDaemon
-from agentirc.clients.claude.ipc import make_request
+from culture.clients.claude.config import AgentConfig, DaemonConfig
+from culture.clients.claude.daemon import AgentDaemon
 
 
 @pytest.fixture
@@ -73,7 +71,7 @@ def test_sleep_schedule_parsing(daemon):
     assert result is not None
     sleep_min, wake_min = result
     assert sleep_min == 23 * 60  # 23:00
-    assert wake_min == 8 * 60   # 08:00
+    assert wake_min == 8 * 60  # 08:00
 
 
 def test_sleep_schedule_invalid():

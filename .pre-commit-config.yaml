@@ -37,6 +37,6 @@ repos:
 
   - id: pylint
     name: pylint
-    entry: uv run pylint --rcfile=.pylintrc
+    entry: uv run pylint --rcfile=.pylintrc --fail-under=9.0
     language: system
     types: [python]

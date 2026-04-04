@@ -5,8 +5,8 @@ import asyncio
 import logging
 from typing import Callable
 
-from agentirc.protocol.message import Message
-from agentirc.clients.BACKEND.message_buffer import MessageBuffer
+from culture.clients.BACKEND.message_buffer import MessageBuffer
+from culture.protocol.message import Message
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +14,16 @@ logger = logging.getLogger(__name__)
 class IRCTransport:
     """Async IRC client for the daemon."""
 
-    def __init__(self, host: str, port: int, nick: str, user: str,
-                 channels: list[str], buffer: MessageBuffer,
-                 on_mention: Callable[[str, str, str], None] | None = None):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        nick: str,
+        user: str,
+        channels: list[str],
+        buffer: MessageBuffer,
+        on_mention: Callable[[str, str, str], None] | None = None,
+    ):
         self.host = host
         self.port = port
         self.nick = nick

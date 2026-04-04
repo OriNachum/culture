@@ -1,6 +1,8 @@
 """Tests for ThreadsSkill — CREATE, REPLY, THREADS list, THREADCLOSE, PROMOTE."""
+
 import asyncio
 import tempfile
+
 import pytest
 
 
@@ -290,13 +292,12 @@ async def test_threadclose_promote_replays_history(server, make_client):
 @pytest.mark.asyncio
 async def test_threads_persist_across_restart():
     """Threads should survive server restart when data_dir is configured."""
-    from agentirc.server.config import ServerConfig
-    from agentirc.server.ircd import IRCd
+    from culture.server.config import ServerConfig
+    from culture.server.ircd import IRCd
     from tests.conftest import IRCTestClient
 
     with tempfile.TemporaryDirectory() as data_dir:
-        config = ServerConfig(name="testserv", host="127.0.0.1", port=0,
-                              data_dir=data_dir)
+        config = ServerConfig(name="testserv", host="127.0.0.1", port=0, data_dir=data_dir)
 
         # Start server, create a thread
         ircd = IRCd(config)

@@ -19,12 +19,12 @@ import time
 from typing import Any
 
 # These imports point to YOUR backend's copies of these files:
-from agentirc.clients.BACKEND.config import DaemonConfig, AgentConfig
-from agentirc.clients.BACKEND.ipc import make_response
-from agentirc.clients.BACKEND.irc_transport import IRCTransport
-from agentirc.clients.BACKEND.message_buffer import MessageBuffer
-from agentirc.clients.BACKEND.socket_server import SocketServer
-from agentirc.clients.BACKEND.webhook import WebhookClient, AlertEvent
+from culture.clients.BACKEND.config import AgentConfig, DaemonConfig
+from culture.clients.BACKEND.ipc import make_response
+from culture.clients.BACKEND.irc_transport import IRCTransport
+from culture.clients.BACKEND.message_buffer import MessageBuffer
+from culture.clients.BACKEND.socket_server import SocketServer
+from culture.clients.BACKEND.webhook import AlertEvent, WebhookClient
 
 logger = logging.getLogger(__name__)
 
@@ -38,15 +38,21 @@ class AgentDaemon:
     3. Adapt _on_mention() for your agent's prompt format
     """
 
-    def __init__(self, config: DaemonConfig, agent: AgentConfig,
-                 *, skip_agent: bool = False, socket_dir: str | None = None):
+    def __init__(
+        self,
+        config: DaemonConfig,
+        agent: AgentConfig,
+        *,
+        skip_agent: bool = False,
+        socket_dir: str | None = None,
+    ):
         self.config = config
         self.agent = agent
         self.skip_agent = skip_agent
 
         self._socket_path = os.path.join(
             socket_dir or os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
-            f"agentirc-{agent.nick}.sock",
+            f"culture-{agent.nick}.sock",
         )
 
         self._transport: IRCTransport | None = None
@@ -128,14 +134,14 @@ class AgentDaemon:
         """Start the agent. REPLACE with your backend's agent startup."""
         raise NotImplementedError(
             "Replace _start_agent_runner() with your agent backend's startup logic. "
-            "See agentirc/clients/claude/daemon.py for the Claude implementation."
+            "See culture/clients/claude/daemon.py for the Claude implementation."
         )
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt for the agent. REPLACE as needed."""
         if self.agent.system_prompt:
             return self.agent.system_prompt
-        return f"You are {self.agent.nick}, an AI agent on the agentirc IRC network."
+        return f"You are {self.agent.nick}, an AI agent on the culture IRC network."
 
     def _parse_sleep_schedule(self) -> tuple[int, int] | None:
         """Parse sleep_start/sleep_end into minutes. Returns None if invalid."""
@@ -168,7 +174,9 @@ class AgentDaemon:
                 current_minutes = now.hour * 60 + now.minute
 
                 if sleep_minutes > wake_minutes:
-                    should_sleep = current_minutes >= sleep_minutes or current_minutes < wake_minutes
+                    should_sleep = (
+                        current_minutes >= sleep_minutes or current_minutes < wake_minutes
+                    )
                 else:
                     should_sleep = sleep_minutes <= current_minutes < wake_minutes
 
@@ -193,13 +201,12 @@ class AgentDaemon:
         self._last_activation = time.time()
         if target.startswith("#"):
             import re
+
             thread_match = re.match(r"^\[thread:([a-zA-Z0-9\-]+)\] ", text)
             if thread_match and self._buffer:
                 thread_name = thread_match.group(1)
                 thread_msgs = self._buffer.read_thread(target, thread_name)
-                history = "\n".join(
-                    f"  <{m.nick}> {m.text}" for m in thread_msgs
-                )
+                history = "\n".join(f"  <{m.nick}> {m.text}" for m in thread_msgs)
                 prompt = (
                     f"[IRC @mention in {target}, thread:{thread_name}]\n"
                     f"Thread history:\n{history}\n"
@@ -233,12 +240,16 @@ class AgentDaemon:
             limit = msg.get("limit", 50)
             if self._buffer:
                 messages = self._buffer.read(channel, limit=limit)
-                return make_response(req_id, ok=True, data={
-                    "messages": [
-                        {"nick": m.nick, "text": m.text, "timestamp": m.timestamp}
-                        for m in messages
-                    ]
-                })
+                return make_response(
+                    req_id,
+                    ok=True,
+                    data={
+                        "messages": [
+                            {"nick": m.nick, "text": m.text, "timestamp": m.timestamp}
+                            for m in messages
+                        ]
+                    },
+                )
             return make_response(req_id, ok=False, error="No buffer")
 
         elif msg_type == "irc_ask":
@@ -247,11 +258,13 @@ class AgentDaemon:
             if self._transport and channel:
                 await self._transport.send_privmsg(channel, message)
             if self._webhook:
-                await self._webhook.fire(AlertEvent(
-                    event_type="agent_question",
-                    nick=self.agent.nick,
-                    message=f"[QUESTION] [{self.agent.nick}] asked in {channel}: {message}",
-                ))
+                await self._webhook.fire(
+                    AlertEvent(
+                        event_type="agent_question",
+                        nick=self.agent.nick,
+                        message=f"[QUESTION] [{self.agent.nick}] asked in {channel}: {message}",
+                    )
+                )
             return make_response(req_id, ok=True)
 
         elif msg_type == "irc_join":
@@ -339,8 +352,9 @@ class AgentDaemon:
         thread_name = msg.get("thread", "")
         text = msg.get("message", "")
         if not channel or not thread_name or not text:
-            return make_response(req_id, ok=False,
-                                 error="Missing 'channel', 'thread', or 'message'")
+            return make_response(
+                req_id, ok=False, error="Missing 'channel', 'thread', or 'message'"
+            )
         if self._transport:
             await self._transport.send_thread_create(channel, thread_name, text)
         return make_response(req_id, ok=True)
@@ -350,8 +364,9 @@ class AgentDaemon:
         thread_name = msg.get("thread", "")
         text = msg.get("message", "")
         if not channel or not thread_name or not text:
-            return make_response(req_id, ok=False,
-                                 error="Missing 'channel', 'thread', or 'message'")
+            return make_response(
+                req_id, ok=False, error="Missing 'channel', 'thread', or 'message'"
+            )
         if self._transport:
             await self._transport.send_thread_reply(channel, thread_name, text)
         return make_response(req_id, ok=True)
@@ -369,8 +384,7 @@ class AgentDaemon:
         thread_name = msg.get("thread", "")
         summary = msg.get("summary", "")
         if not channel or not thread_name:
-            return make_response(req_id, ok=False,
-                                 error="Missing 'channel' or 'thread'")
+            return make_response(req_id, ok=False, error="Missing 'channel' or 'thread'")
         if self._transport:
             await self._transport.send_thread_close(channel, thread_name, summary)
         return make_response(req_id, ok=True)
@@ -380,17 +394,24 @@ class AgentDaemon:
         thread_name = msg.get("thread", "")
         limit = int(msg.get("limit", 50))
         if not channel or not thread_name:
-            return make_response(req_id, ok=False,
-                                 error="Missing 'channel' or 'thread'")
+            return make_response(req_id, ok=False, error="Missing 'channel' or 'thread'")
         if self._buffer:
             messages = self._buffer.read_thread(channel, thread_name, limit=limit)
-            return make_response(req_id, ok=True, data={
-                "messages": [
-                    {"nick": m.nick, "text": m.text, "timestamp": m.timestamp,
-                     "thread": m.thread}
-                    for m in messages
-                ]
-            })
+            return make_response(
+                req_id,
+                ok=True,
+                data={
+                    "messages": [
+                        {
+                            "nick": m.nick,
+                            "text": m.text,
+                            "timestamp": m.timestamp,
+                            "thread": m.thread,
+                        }
+                        for m in messages
+                    ]
+                },
+            )
         return make_response(req_id, ok=False, error="No buffer")
 
     async def _ipc_status(self, req_id: str, msg: dict | None = None) -> dict:
@@ -402,14 +423,18 @@ class AgentDaemon:
         if query and running and not self._paused:
             description = await self._query_agent_status()
 
-        return make_response(req_id, ok=True, data={
-            "running": running,
-            "paused": self._paused,
-            "turn_count": 0,
-            "last_activation": self._last_activation,
-            "activity": "paused" if self._paused else ("working" if running else "idle"),
-            "description": description,
-        })
+        return make_response(
+            req_id,
+            ok=True,
+            data={
+                "running": running,
+                "paused": self._paused,
+                "turn_count": 0,
+                "last_activation": self._last_activation,
+                "activity": "paused" if self._paused else ("working" if running else "idle"),
+                "description": description,
+            },
+        )
 
     def _describe_activity(self, live_query: bool = False) -> str:
         """Return a human-readable description of what the agent is doing."""
@@ -425,5 +450,5 @@ class AgentDaemon:
     async def _query_agent_status(self) -> str:
         """Ask the agent directly what it's working on. ADAPT for your backend."""
         # ADAPT: send a system prompt to your agent runner and wait for response
-        # See agentirc/clients/claude/daemon.py for the full implementation
+        # See culture/clients/claude/daemon.py for the full implementation
         return "nothing"

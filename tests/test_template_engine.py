@@ -2,7 +2,7 @@
 
 import json
 
-from agentirc.bots.template_engine import render_fallback, render_template
+from culture.bots.template_engine import render_fallback, render_template
 
 
 def test_simple_substitution():
@@ -11,12 +11,12 @@ def test_simple_substitution():
 
 
 def test_nested_substitution():
-    payload = {"repo": {"full_name": "ori/agentirc", "branch": "main"}}
+    payload = {"repo": {"full_name": "ori/culture", "branch": "main"}}
     result = render_template(
         "Repo: {body.repo.full_name} Branch: {body.repo.branch}",
         payload,
     )
-    assert result == "Repo: ori/agentirc Branch: main"
+    assert result == "Repo: ori/culture Branch: main"
 
 
 def test_multiple_tokens():

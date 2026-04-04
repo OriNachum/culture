@@ -2,13 +2,13 @@
 """Layer 4: Federation tests -- server-to-server linking."""
 
 import asyncio
+
 import pytest
 import pytest_asyncio
 
-from agentirc.server.config import LinkConfig, ServerConfig
-from agentirc.server.ircd import IRCd
+from culture.server.config import LinkConfig, ServerConfig
+from culture.server.ircd import IRCd
 from tests.conftest import IRCTestClient
-
 
 # =============================================================================
 # Phase 1: Handshake
@@ -485,11 +485,15 @@ async def test_reconnect_resyncs_state():
     password = "testlink123"
 
     config_a = ServerConfig(
-        name="alpha", host="127.0.0.1", port=0,
+        name="alpha",
+        host="127.0.0.1",
+        port=0,
         links=[LinkConfig(name="beta", host="127.0.0.1", port=0, password=password)],
     )
     config_b = ServerConfig(
-        name="beta", host="127.0.0.1", port=0,
+        name="beta",
+        host="127.0.0.1",
+        port=0,
         links=[LinkConfig(name="alpha", host="127.0.0.1", port=0, password=password)],
     )
 
@@ -558,11 +562,15 @@ async def test_backfill_replays_missed_messages():
     password = "testlink123"
 
     config_a = ServerConfig(
-        name="alpha", host="127.0.0.1", port=0,
+        name="alpha",
+        host="127.0.0.1",
+        port=0,
         links=[LinkConfig(name="beta", host="127.0.0.1", port=0, password=password)],
     )
     config_b = ServerConfig(
-        name="beta", host="127.0.0.1", port=0,
+        name="beta",
+        host="127.0.0.1",
+        port=0,
         links=[LinkConfig(name="alpha", host="127.0.0.1", port=0, password=password)],
     )
 
@@ -645,11 +653,15 @@ async def test_backfill_does_not_duplicate():
     password = "testlink123"
 
     config_a = ServerConfig(
-        name="alpha", host="127.0.0.1", port=0,
+        name="alpha",
+        host="127.0.0.1",
+        port=0,
         links=[LinkConfig(name="beta", host="127.0.0.1", port=0, password=password)],
     )
     config_b = ServerConfig(
-        name="beta", host="127.0.0.1", port=0,
+        name="beta",
+        host="127.0.0.1",
+        port=0,
         links=[LinkConfig(name="alpha", host="127.0.0.1", port=0, password=password)],
     )
 
@@ -737,11 +749,15 @@ async def test_history_includes_backfilled_messages():
     password = "testlink123"
 
     config_a = ServerConfig(
-        name="alpha", host="127.0.0.1", port=0,
+        name="alpha",
+        host="127.0.0.1",
+        port=0,
         links=[LinkConfig(name="beta", host="127.0.0.1", port=0, password=password)],
     )
     config_b = ServerConfig(
-        name="beta", host="127.0.0.1", port=0,
+        name="beta",
+        host="127.0.0.1",
+        port=0,
         links=[LinkConfig(name="alpha", host="127.0.0.1", port=0, password=password)],
     )
 
@@ -906,8 +922,9 @@ async def _make_linked_pair(*, trust: str = "full"):
                 break
             await asyncio.sleep(0.05)
 
-        assert "beta" in server_a.links and "alpha" in server_b.links, \
-            "Server link handshake failed — link not established"
+        assert (
+            "beta" in server_a.links and "alpha" in server_b.links
+        ), "Server link handshake failed — link not established"
     except Exception:
         await server_a.stop()
         await server_b.stop()
@@ -1046,13 +1063,15 @@ async def test_restricted_link_mutual_share_relayed():
         # Verify +S is set on both sides
         channel_a = server_a.channels.get("#collab")
         assert channel_a is not None
-        assert "beta" in channel_a.shared_with, \
-            f"Server A #collab should share with beta: {channel_a.shared_with}"
+        assert (
+            "beta" in channel_a.shared_with
+        ), f"Server A #collab should share with beta: {channel_a.shared_with}"
 
         channel_b = server_b.channels.get("#collab")
         assert channel_b is not None
-        assert "alpha" in channel_b.shared_with, \
-            f"Server B #collab should share with alpha: {channel_b.shared_with}"
+        assert (
+            "alpha" in channel_b.shared_with
+        ), f"Server B #collab should share with alpha: {channel_b.shared_with}"
 
         # Now Alice sends a message -- it should relay to Bob
         await client_a.send("PRIVMSG #collab :shared message")
@@ -1100,8 +1119,7 @@ async def test_restricted_link_one_sided_share_not_relayed():
         assert "beta" in channel_a.shared_with
 
         channel_b = server_b.channels.get("#collab")
-        assert "alpha" not in channel_b.shared_with, \
-            "Server B should NOT have +S alpha set"
+        assert "alpha" not in channel_b.shared_with, "Server B should NOT have +S alpha set"
 
         # Alice sends a message -- should NOT relay (one-sided +S)
         await client_a.send("PRIVMSG #collab :one sided message")
@@ -1109,8 +1127,7 @@ async def test_restricted_link_one_sided_share_not_relayed():
         resp = await client_b.recv_all(timeout=0.5)
 
         relayed = [l for l in resp if "PRIVMSG" in l and "one sided message" in l]
-        assert not relayed, \
-            f"One-sided +S should NOT enable relay on restricted link: {resp}"
+        assert not relayed, f"One-sided +S should NOT enable relay on restricted link: {resp}"
     finally:
         try:
             await client_a.close()
@@ -1137,14 +1154,16 @@ async def test_new_channel_on_full_link_relayed():
         await asyncio.sleep(0.5)
 
         # Server B should see #new-room (via SJOIN relay)
-        assert "#new-room" in server_b.channels, \
-            f"New channel should federate on full link: {list(server_b.channels.keys())}"
+        assert (
+            "#new-room" in server_b.channels
+        ), f"New channel should federate on full link: {list(server_b.channels.keys())}"
 
         # Remote member should be visible
         channel_b = server_b.channels["#new-room"]
         member_nicks = {m.nick for m in channel_b.members}
-        assert "alpha-alice" in member_nicks, \
-            f"alpha-alice should be in #new-room on server B: {member_nicks}"
+        assert (
+            "alpha-alice" in member_nicks
+        ), f"alpha-alice should be in #new-room on server B: {member_nicks}"
     finally:
         try:
             await client_a.close()
@@ -1167,8 +1186,9 @@ async def test_new_channel_on_restricted_link_not_relayed():
         await asyncio.sleep(0.5)
 
         # Server B should NOT see #new-room (restricted link, no +S)
-        assert "#new-room" not in server_b.channels, \
-            f"New channel should NOT federate on restricted link: {list(server_b.channels.keys())}"
+        assert (
+            "#new-room" not in server_b.channels
+        ), f"New channel should NOT federate on restricted link: {list(server_b.channels.keys())}"
     finally:
         try:
             await client_a.close()

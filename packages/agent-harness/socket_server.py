@@ -4,9 +4,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, Callable, Awaitable
+from typing import Any, Awaitable, Callable
 
-from agentirc.clients.BACKEND.ipc import encode_message, decode_message, make_whisper, make_response
+from culture.clients.BACKEND.ipc import decode_message, encode_message, make_response, make_whisper
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,9 @@ class SocketServer:
             # No clients yet — queue for delivery when one connects.
             await self._whisper_queue.put(data)
 
-    async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    async def _handle_client(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
         self._clients.append(writer)
         # Drain any queued whispers that arrived before this client connected.
         while not self._whisper_queue.empty():

@@ -3,68 +3,6 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
-name = "agentirc-cli"
-version = "0.21.0"
-source = { editable = "." }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "anthropic" },
-    { name = "claude-agent-sdk" },
-    { name = "mistune" },
-    { name = "pyyaml" },
-]
-
-[package.optional-dependencies]
-copilot = [
-    { name = "github-copilot-sdk" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "bandit" },
-    { name = "black" },
-    { name = "coverage" },
-    { name = "flake8" },
-    { name = "flake8-bandit" },
-    { name = "flake8-bugbear" },
-    { name = "isort" },
-    { name = "pre-commit" },
-    { name = "pylint" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "safety" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.9" },
-    { name = "anthropic", specifier = ">=0.40" },
-    { name = "claude-agent-sdk", specifier = ">=0.1" },
-    { name = "github-copilot-sdk", marker = "extra == 'copilot'" },
-    { name = "mistune", specifier = ">=3.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
-]
-provides-extras = ["copilot"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "bandit", specifier = ">=1.7.5" },
-    { name = "black", specifier = ">=23.7.0" },
-    { name = "coverage", specifier = ">=7.2.0" },
-    { name = "flake8", specifier = ">=6.1" },
-    { name = "flake8-bandit", specifier = ">=4.1.1" },
-    { name = "flake8-bugbear", specifier = ">=23.7.10" },
-    { name = "isort", specifier = ">=5.12.0" },
-    { name = "pre-commit", specifier = ">=3.5.0" },
-    { name = "pylint", specifier = ">=2.17.0" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.25" },
-    { name = "pytest-cov", specifier = ">=4.1" },
-    { name = "safety", specifier = ">=2.3.0" },
-]
-
-[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -619,6 +557,68 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/96/93/682d2b43c1d5f1406ed048f377c0fc9fc8f7b0447a478d5c65ab3d3a66eb/cryptography-46.0.5-cp38-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:ced80795227d70549a411a4ab66e8ce307899fad2220ce5ab2f296e687eacde9", size = 4667123, upload-time = "2026-02-10T19:18:15.886Z" },
     { url = "https://files.pythonhosted.org/packages/45/2d/9c5f2926cb5300a8eefc3f4f0b3f3df39db7f7ce40c8365444c49363cbda/cryptography-46.0.5-cp38-abi3-win32.whl", hash = "sha256:02f547fce831f5096c9a567fd41bc12ca8f11df260959ecc7c3202555cc47a72", size = 3010220, upload-time = "2026-02-10T19:18:17.361Z" },
     { url = "https://files.pythonhosted.org/packages/48/ef/0c2f4a8e31018a986949d34a01115dd057bf536905dca38897bacd21fac3/cryptography-46.0.5-cp38-abi3-win_amd64.whl", hash = "sha256:556e106ee01aa13484ce9b0239bca667be5004efb0aabbed28d353df86445595", size = 3467050, upload-time = "2026-02-10T19:18:18.899Z" },
+]
+
+[[package]]
+name = "culture"
+version = "1.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "anthropic" },
+    { name = "claude-agent-sdk" },
+    { name = "mistune" },
+    { name = "pyyaml" },
+]
+
+[package.optional-dependencies]
+copilot = [
+    { name = "github-copilot-sdk" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "bandit" },
+    { name = "black" },
+    { name = "coverage" },
+    { name = "flake8" },
+    { name = "flake8-bandit" },
+    { name = "flake8-bugbear" },
+    { name = "isort" },
+    { name = "pre-commit" },
+    { name = "pylint" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "safety" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9" },
+    { name = "anthropic", specifier = ">=0.40" },
+    { name = "claude-agent-sdk", specifier = ">=0.1" },
+    { name = "github-copilot-sdk", marker = "extra == 'copilot'" },
+    { name = "mistune", specifier = ">=3.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+]
+provides-extras = ["copilot"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "bandit", specifier = ">=1.7.5" },
+    { name = "black", specifier = ">=23.7.0" },
+    { name = "coverage", specifier = ">=7.2.0" },
+    { name = "flake8", specifier = ">=6.1" },
+    { name = "flake8-bandit", specifier = ">=4.1.1" },
+    { name = "flake8-bugbear", specifier = ">=23.7.10" },
+    { name = "isort", specifier = ">=5.12.0" },
+    { name = "pre-commit", specifier = ">=3.5.0" },
+    { name = "pylint", specifier = ">=2.17.0" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=0.25" },
+    { name = "pytest-cov", specifier = ">=4.1" },
+    { name = "safety", specifier = ">=2.3.0" },
 ]
 
 [[package]]

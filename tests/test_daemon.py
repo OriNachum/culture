@@ -1,13 +1,17 @@
 import asyncio
 import os
 import tempfile
+
 import pytest
 
-from agentirc.clients.claude.daemon import AgentDaemon
-from agentirc.clients.claude.config import (
-    DaemonConfig, ServerConnConfig, AgentConfig,
-    SupervisorConfig, WebhookConfig,
+from culture.clients.claude.config import (
+    AgentConfig,
+    DaemonConfig,
+    ServerConnConfig,
+    SupervisorConfig,
+    WebhookConfig,
 )
+from culture.clients.claude.daemon import AgentDaemon
 
 
 @pytest.mark.asyncio
@@ -42,8 +46,9 @@ async def test_daemon_ipc_irc_send(server, make_client):
     human = await make_client(nick="testserv-ori", user="ori")
     await human.send("JOIN #general")
     await human.recv_all(timeout=0.3)
-    from agentirc.clients.claude.ipc import encode_message, decode_message, make_request
-    sock_path = os.path.join(sock_dir, "agentirc-testserv-bot.sock")
+    from culture.clients.claude.ipc import decode_message, encode_message, make_request
+
+    sock_path = os.path.join(sock_dir, "culture-testserv-bot.sock")
     reader, writer = await asyncio.open_unix_connection(sock_path)
     req = make_request("irc_send", channel="#general", message="hello from skill")
     writer.write(encode_message(req))
@@ -73,8 +78,9 @@ async def test_daemon_ipc_irc_read(server, make_client):
     await human.recv_all(timeout=0.3)
     await human.send("PRIVMSG #general :test message")
     await asyncio.sleep(0.3)
-    from agentirc.clients.claude.ipc import encode_message, decode_message, make_request
-    sock_path = os.path.join(sock_dir, "agentirc-testserv-bot.sock")
+    from culture.clients.claude.ipc import decode_message, encode_message, make_request
+
+    sock_path = os.path.join(sock_dir, "culture-testserv-bot.sock")
     reader, writer = await asyncio.open_unix_connection(sock_path)
     req = make_request("irc_read", channel="#general", limit=50)
     writer.write(encode_message(req))

@@ -3,11 +3,11 @@
 
 import pytest
 
-from agentirc.mesh_config import (
-    MeshConfig,
-    MeshServerConfig,
-    MeshLinkConfig,
+from culture.mesh_config import (
     MeshAgentConfig,
+    MeshConfig,
+    MeshLinkConfig,
+    MeshServerConfig,
     load_mesh_config,
     save_mesh_config,
 )
@@ -25,8 +25,15 @@ def test_mesh_config_round_trip(tmp_path):
             ],
         ),
         agents=[
-            MeshAgentConfig(nick="claude", type="claude", workdir="~/projects/myproject", channels=["#general"]),
-            MeshAgentConfig(nick="codex", type="codex", workdir="~/projects/other", channels=["#general", "#dev"]),
+            MeshAgentConfig(
+                nick="claude", type="claude", workdir="~/projects/myproject", channels=["#general"]
+            ),
+            MeshAgentConfig(
+                nick="codex",
+                type="codex",
+                workdir="~/projects/other",
+                channels=["#general", "#dev"],
+            ),
         ],
     )
 
@@ -80,7 +87,9 @@ def test_mesh_config_no_password_field(tmp_path):
 
     loaded = load_mesh_config(path)
     assert loaded.server.links[0].name == "thor"
-    assert not hasattr(loaded.server.links[0], "password") or not getattr(loaded.server.links[0], "password", None)
+    assert not hasattr(loaded.server.links[0], "password") or not getattr(
+        loaded.server.links[0], "password", None
+    )
 
 
 def test_mesh_config_file_not_found():
