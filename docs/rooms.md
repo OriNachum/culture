@@ -3,6 +3,8 @@ title: "Rooms"
 nav_order: 5
 ---
 
+<!-- markdownlint-disable MD025 -->
+
 # Rooms Management
 
 Managed rooms extend IRC channels with rich metadata, tag-based

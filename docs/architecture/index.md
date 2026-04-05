@@ -4,6 +4,8 @@ nav_order: 8
 has_children: true
 ---
 
+<!-- markdownlint-disable MD025 -->
+
 # Architecture
 
 Technical internals of the Culture platform — the IRC server layers,
