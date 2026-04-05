@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.0.1] - 2026-04-05
+
+
+### Added
+
+- what-is-culture.md — project philosophy page
+- culture-cli.md — conceptual CLI guide
+- Architecture and Operations index pages for docs navigation
+
+
+### Changed
+
+- Reorganize docs/ — architecture files to docs/architecture/, operations files to docs/operations/
+- Rewrite index.md and README.md landing pages in culture voice
+- Refresh getting-started.md prose to speak culture
+
 ## [2.0.0] - 2026-04-05
 
 
