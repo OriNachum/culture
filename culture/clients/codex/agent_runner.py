@@ -118,17 +118,11 @@ class CodexAgentRunner:
 
         if self._task:
             self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+            await asyncio.gather(self._task, return_exceptions=True)
 
         if self._reader_task:
             self._reader_task.cancel()
-            try:
-                await self._reader_task
-            except asyncio.CancelledError:
-                pass
+            await asyncio.gather(self._reader_task, return_exceptions=True)
 
         if self._process:
             try:
@@ -220,7 +214,9 @@ class CodexAgentRunner:
                 elif "method" in msg:
                     await self._handle_notification(msg)
 
-        except (asyncio.CancelledError, ConnectionError):
+        except asyncio.CancelledError:
+            raise
+        except ConnectionError:
             pass
         except Exception:
             logger.exception("Codex read loop error")
@@ -331,4 +327,4 @@ class CodexAgentRunner:
                     logger.exception("Codex turn error")
 
         except asyncio.CancelledError:
-            pass
+            raise
