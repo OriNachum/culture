@@ -314,33 +314,45 @@ class ThreadsSkill(Skill):
             if member is not sender and not isinstance(member, RemoteClient):
                 await member.send(relay)
 
-        # Notify @mentioned users in the thread message
-        mentioned_nicks = re.findall(r"@(\S+)", text)
-        if mentioned_nicks:
-            seen: set[str] = set()
-            for raw_nick in mentioned_nicks:
-                nick = raw_nick.rstrip(".,;:!?")
-                if nick in seen or nick == sender.nick:
-                    continue
-                seen.add(nick)
-                target_client = self.server.clients.get(nick)
-                if not target_client:
-                    continue
-                if target_client not in channel.members:
-                    continue
-                if isinstance(target_client, RemoteClient):
-                    continue
-                notice = Message(
-                    prefix=self.server.config.name,
-                    command="NOTICE",
-                    params=[
-                        nick,
-                        f"{sender.nick} mentioned you in thread {thread_name} on {channel.name}",
-                    ],
-                )
-                await target_client.send(notice)
+        await self._notify_mentioned_in_thread(sender, channel, thread_name, text)
 
         return prefixed
+
+    async def _notify_mentioned_in_thread(
+        self,
+        sender: Client,
+        channel: Channel,
+        thread_name: str,
+        text: str,
+    ) -> None:
+        """Find @mentions in text and send a NOTICE to each mentioned user in the channel."""
+        from culture.server.remote_client import RemoteClient
+
+        mentioned_nicks = re.findall(r"@(\S+)", text)
+        if not mentioned_nicks:
+            return
+        seen: set[str] = set()
+        for raw_nick in mentioned_nicks:
+            nick = raw_nick.rstrip(".,;:!?")
+            if nick in seen or nick == sender.nick:
+                continue
+            seen.add(nick)
+            target_client = self.server.clients.get(nick)
+            if not target_client:
+                continue
+            if target_client not in channel.members:
+                continue
+            if isinstance(target_client, RemoteClient):
+                continue
+            notice = Message(
+                prefix=self.server.config.name,
+                command="NOTICE",
+                params=[
+                    nick,
+                    f"{sender.nick} mentioned you in thread {thread_name} on {channel.name}",
+                ],
+            )
+            await target_client.send(notice)
 
     # ---- THREADS (list) ---------------------------------------------------
 
@@ -409,36 +421,10 @@ class ThreadsSkill(Skill):
         thread_name = msg.params[1]
         summary = msg.params[2] if len(msg.params) > 2 else None
 
-        # Validate channel membership
-        channel = self.server.channels.get(channel_name)
-        if not channel or client not in channel.members:
-            await client.send_numeric(
-                replies.ERR_NOTONCHANNEL, channel_name, "You're not on that channel"
-            )
+        result = await self._validate_thread_access(client, channel_name, thread_name, "close")
+        if result is None:
             return
-
-        # Validate thread exists
-        key = (channel_name, thread_name)
-        thread = self._threads.get(key)
-        if not thread:
-            await client.send(
-                Message(
-                    prefix=self.server.config.name,
-                    command="404",
-                    params=[client.nick or "*", thread_name, "No such thread"],
-                )
-            )
-            return
-
-        if thread.archived:
-            await client.send(
-                Message(
-                    prefix=self.server.config.name,
-                    command="405",
-                    params=[client.nick or "*", thread_name, "Thread is already closed"],
-                )
-            )
-            return
+        channel, thread = result
 
         # Authorization: thread participants or channel operators
         if client.nick not in thread.participants and not channel.is_operator(client):
@@ -454,16 +440,7 @@ class ThreadsSkill(Skill):
         # Post summary NOTICE to parent channel
         n_participants = len(thread.participants)
         n_messages = len(thread.messages)
-        if summary:
-            summary_text = (
-                f"[Thread {thread_name} closed] Summary: {summary} "
-                f"({n_participants} participants, {n_messages} messages)"
-            )
-        else:
-            summary_text = (
-                f"[Thread {thread_name} closed] "
-                f"({n_participants} participants, {n_messages} messages)"
-            )
+        summary_text = self._build_close_summary(thread_name, summary, n_participants, n_messages)
         notice = Message(
             prefix=self.server.config.name,
             command="NOTICE",
@@ -493,6 +470,67 @@ class ThreadsSkill(Skill):
             )
         )
 
+    async def _validate_thread_access(
+        self,
+        client: Client,
+        channel_name: str,
+        thread_name: str,
+        operation_label: str,
+    ):
+        """Validate channel membership, thread existence, and thread not archived.
+
+        Returns (channel, thread) on success, or sends the appropriate error and returns None.
+        Does NOT check authorization — callers enforce that themselves.
+        """
+        channel = self.server.channels.get(channel_name)
+        if not channel or client not in channel.members:
+            await client.send_numeric(
+                replies.ERR_NOTONCHANNEL, channel_name, "You're not on that channel"
+            )
+            return None
+
+        key = (channel_name, thread_name)
+        thread = self._threads.get(key)
+        if not thread:
+            await client.send(
+                Message(
+                    prefix=self.server.config.name,
+                    command="404",
+                    params=[client.nick or "*", thread_name, "No such thread"],
+                )
+            )
+            return None
+
+        if thread.archived:
+            await client.send(
+                Message(
+                    prefix=self.server.config.name,
+                    command="405",
+                    params=[client.nick or "*", thread_name, "Thread is already closed"],
+                )
+            )
+            return None
+
+        return (channel, thread)
+
+    @staticmethod
+    def _build_close_summary(
+        thread_name: str,
+        summary: str | None,
+        n_participants: int,
+        n_messages: int,
+    ) -> str:
+        """Format the NOTICE text announcing a thread was closed."""
+        if summary:
+            return (
+                f"[Thread {thread_name} closed] Summary: {summary} "
+                f"({n_participants} participants, {n_messages} messages)"
+            )
+        return (
+            f"[Thread {thread_name} closed] "
+            f"({n_participants} participants, {n_messages} messages)"
+        )
+
     async def _handle_promote(self, client: Client, msg: Message) -> None:
         # THREADCLOSE PROMOTE #channel thread-name [#breakout-name]
         if len(msg.params) < 3:
@@ -505,36 +543,10 @@ class ThreadsSkill(Skill):
         thread_name = msg.params[2]
         custom_breakout = msg.params[3] if len(msg.params) > 3 else None
 
-        # Validate channel membership
-        channel = self.server.channels.get(channel_name)
-        if not channel or client not in channel.members:
-            await client.send_numeric(
-                replies.ERR_NOTONCHANNEL, channel_name, "You're not on that channel"
-            )
+        result = await self._validate_thread_access(client, channel_name, thread_name, "promote")
+        if result is None:
             return
-
-        # Validate thread exists
-        key = (channel_name, thread_name)
-        thread = self._threads.get(key)
-        if not thread:
-            await client.send(
-                Message(
-                    prefix=self.server.config.name,
-                    command="404",
-                    params=[client.nick or "*", thread_name, "No such thread"],
-                )
-            )
-            return
-
-        if thread.archived:
-            await client.send(
-                Message(
-                    prefix=self.server.config.name,
-                    command="405",
-                    params=[client.nick or "*", thread_name, "Thread is already closed"],
-                )
-            )
-            return
+        channel, thread = result
 
         # Authorization: thread creator or channel operators
         if client.nick != thread.creator and not channel.is_operator(client):
@@ -543,71 +555,26 @@ class ThreadsSkill(Skill):
             )
             return
 
-        # Determine breakout channel name
+        # Determine breakout channel name and create it
         channel_base = channel_name  # e.g. "#general"
         breakout_name = custom_breakout or f"{channel_base}-{thread_name}"
 
-        # Check if breakout channel already exists (allow reuse only for same thread)
-        existing = self.server.channels.get(breakout_name)
-        if existing is not None:
-            if (
-                existing.extra_meta.get("thread_parent") != channel_name
-                or existing.extra_meta.get("thread_name") != thread_name
-            ):
-                await client.send(
-                    Message(
-                        prefix=self.server.config.name,
-                        command="400",
-                        params=[client.nick or "*", breakout_name, "Channel already exists"],
-                    )
-                )
-                return
+        breakout = await self._create_breakout_channel(
+            client, channel, thread, channel_name, thread_name, breakout_name
+        )
+        if breakout is None:
+            return
 
-        # Create breakout channel
-        breakout = self.server.get_or_create_channel(breakout_name)
-        breakout.topic = f"Promoted from thread '{thread_name}' in {channel_name}"
-        breakout.extra_meta["thread_parent"] = channel_name
-        breakout.extra_meta["thread_name"] = thread_name
-
-        # Gather participants (unique nicks who posted in the thread)
-        from culture.server.remote_client import RemoteClient
-
-        participant_nicks = thread.participants
-        participants = []
-        for nick in participant_nicks:
-            c = self.server.clients.get(nick)
-            if c and not isinstance(c, RemoteClient):
-                participants.append(c)
-
-        # Auto-join participants to breakout
-        for member in participants:
-            if member not in breakout.members:
-                breakout.add(member)
-                member.channels.add(breakout)
-
-        # Send JOIN messages to all breakout members
-        for member in participants:
-            join_msg = Message(prefix=member.prefix, command="JOIN", params=[breakout_name])
-            for other in list(breakout.members):
-                if not isinstance(other, RemoteClient):
-                    await other.send(join_msg)
-
-        # Replay thread history as NOTICE messages
-        for tmsg in thread.messages:
-            replay = Message(
-                prefix=self.server.config.name,
-                command="NOTICE",
-                params=[breakout_name, f"[history] <{tmsg.nick}> {tmsg.text}"],
-            )
-            for member in list(breakout.members):
-                if not isinstance(member, RemoteClient):
-                    await member.send(replay)
+        await self._populate_breakout(thread, breakout, breakout_name)
+        await self._replay_thread_history(thread, breakout_name)
 
         # Archive original thread
         thread.archived = True
         thread.summary = f"Promoted to {breakout_name}"
 
         # Post promotion notice to parent channel
+        from culture.server.remote_client import RemoteClient
+
         notice = Message(
             prefix=self.server.config.name,
             command="NOTICE",
@@ -635,6 +602,82 @@ class ThreadsSkill(Skill):
                 },
             )
         )
+
+    async def _create_breakout_channel(
+        self,
+        client: Client,
+        channel: Channel,
+        thread: Thread,
+        channel_name: str,
+        thread_name: str,
+        breakout_name: str,
+    ):
+        """Create a breakout channel for the promoted thread.
+
+        Checks for conflicts with existing channels. Returns the Channel on success,
+        or sends an error and returns None.
+        """
+        existing = self.server.channels.get(breakout_name)
+        if existing is not None:
+            if (
+                existing.extra_meta.get("thread_parent") != channel_name
+                or existing.extra_meta.get("thread_name") != thread_name
+            ):
+                await client.send(
+                    Message(
+                        prefix=self.server.config.name,
+                        command="400",
+                        params=[client.nick or "*", breakout_name, "Channel already exists"],
+                    )
+                )
+                return None
+
+        breakout = self.server.get_or_create_channel(breakout_name)
+        breakout.topic = f"Promoted from thread '{thread_name}' in {channel_name}"
+        breakout.extra_meta["thread_parent"] = channel_name
+        breakout.extra_meta["thread_name"] = thread_name
+        return breakout
+
+    async def _populate_breakout(self, thread: Thread, breakout, breakout_name: str) -> None:
+        """Gather local participants from the thread, auto-join them, and send JOIN messages."""
+        from culture.server.remote_client import RemoteClient
+
+        participant_nicks = thread.participants
+        participants = []
+        for nick in participant_nicks:
+            c = self.server.clients.get(nick)
+            if c and not isinstance(c, RemoteClient):
+                participants.append(c)
+
+        # Auto-join participants to breakout
+        for member in participants:
+            if member not in breakout.members:
+                breakout.add(member)
+                member.channels.add(breakout)
+
+        # Send JOIN messages to all breakout members
+        for member in participants:
+            join_msg = Message(prefix=member.prefix, command="JOIN", params=[breakout_name])
+            for other in list(breakout.members):
+                if not isinstance(other, RemoteClient):
+                    await other.send(join_msg)
+
+    async def _replay_thread_history(self, thread: Thread, breakout_name: str) -> None:
+        """Replay all thread messages as NOTICE to breakout channel members."""
+        from culture.server.remote_client import RemoteClient
+
+        breakout = self.server.channels.get(breakout_name)
+        if breakout is None:
+            return
+        for tmsg in thread.messages:
+            replay = Message(
+                prefix=self.server.config.name,
+                command="NOTICE",
+                params=[breakout_name, f"[history] <{tmsg.nick}> {tmsg.text}"],
+            )
+            for member in list(breakout.members):
+                if not isinstance(member, RemoteClient):
+                    await member.send(replay)
 
     # ---- Public helpers ------------------------------------------------------
 
