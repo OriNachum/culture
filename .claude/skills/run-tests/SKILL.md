@@ -42,7 +42,7 @@ Extra arguments are passed through to pytest (e.g., `-x` for stop-on-first-failu
 
 ## When to Use Which Mode
 
-- **After code changes:** `bash test.sh -p` — fast parallel run, verbose output
-- **Quick sanity check:** `bash test.sh -p -q` — minimal output
-- **Before PR / release:** `bash test.sh --ci` — matches CI exactly
-- **Debugging flaky test:** `bash test.sh tests/test_flaky.py` — sequential, single file
+- **After code changes:** `bash .claude/skills/run-tests/scripts/test.sh -p` — fast parallel run, verbose output
+- **Quick sanity check:** `bash .claude/skills/run-tests/scripts/test.sh -p -q` — minimal output
+- **Before PR / release:** `bash .claude/skills/run-tests/scripts/test.sh --ci` — matches CI exactly
+- **Debugging flaky test:** `bash .claude/skills/run-tests/scripts/test.sh tests/test_flaky.py` — sequential, single file
