@@ -57,6 +57,7 @@ class AgentConfig:
     model: str = "gpt-5.4"
     system_prompt: str = ""
     tags: list[str] = field(default_factory=list)
+    icon: str | None = None
 
 
 @dataclass

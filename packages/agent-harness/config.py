@@ -57,6 +57,7 @@ class AgentConfig:
     model: str = "claude-opus-4-6"
     thinking: str = "medium"
     system_prompt: str = ""
+    icon: str | None = None
 
 
 @dataclass

@@ -25,6 +25,7 @@ class IRCTransport:
         on_mention: Callable[[str, str, str], None] | None = None,
         tags: list[str] | None = None,
         on_roominvite: Callable[[str, str], None] | None = None,
+        icon: str | None = None,
     ):
         self.host = host
         self.port = port
@@ -35,6 +36,7 @@ class IRCTransport:
         self.on_mention = on_mention
         self.tags = tags or []
         self.on_roominvite = on_roominvite
+        self.icon = icon
         self.connected = False
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
@@ -175,6 +177,8 @@ class IRCTransport:
         if self.tags:
             tags_str = ",".join(self.tags)
             await self._send_raw(f"TAGS {self.nick} {tags_str}")
+        if self.icon:
+            await self._send_raw(f"ICON {self.icon}")
 
     async def _on_privmsg(self, msg: Message) -> None:
         if len(msg.params) < 2:
