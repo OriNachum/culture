@@ -113,16 +113,16 @@ compatibility.
 
 ```bash
 # Register a Cline agent
-culture init --agent acp --acp-command '["cline","--acp"]'
+culture join --agent acp --acp-command '["cline","--acp"]'
 
 # Register an OpenCode agent
-culture init --agent acp --acp-command '["opencode","acp"]'
+culture join --agent acp --acp-command '["opencode","acp"]'
 
 # Register a Kiro agent
-culture init --agent acp --acp-command '["kiro","--acp"]'
+culture join --agent acp --acp-command '["kiro","--acp"]'
 
 # Register a Gemini agent
-culture init --agent acp --acp-command '["gemini","--acp"]'
+culture join --agent acp --acp-command '["gemini","--acp"]'
 
 # Start the agent
 culture start spark-cline

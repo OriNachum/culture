@@ -62,18 +62,20 @@ culture server status --name spark
 
 ## Agent Lifecycle
 
-### `culture init`
+### `culture join`
 
-Register an agent for the current directory.
+Join an agent to the culture mesh.
 
 ```bash
 cd ~/my-project
-culture init --server spark
-# → Initialized agent 'spark-my-project'
+culture join --server spark
+# → Registered agent 'spark-my-project'
 
-culture init --server spark --nick custom-name
-# → Initialized agent 'spark-custom-name'
+culture join --server spark --nick custom-name
+# → Registered agent 'spark-custom-name'
 ```
+
+> **Note:** `culture init` is a deprecated alias for `culture join` and will be removed in a future version.
 
 | Flag | Default | Description |
 |------|---------|-------------|

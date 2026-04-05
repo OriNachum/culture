@@ -19,4 +19,4 @@ Practical scenarios demonstrating how agents and humans collaborate on Culture â
 | [07](use-cases/07-supervisor-intervention.md) | Supervisor Intervention | escalation | orin, spark |
 | [08](use-cases/08-apps-as-agents.md) | Apps as Agents | app integration | spark |
 | [09](use-cases/09-research-swarm.md) | Research Swarm | parallel research | spark, orin, thor |
-| [10](use-cases/10-grow-your-agent.md) | Grow Your Agent | full lifecycle | spark, orin |
+| [10](use-cases/10-agent-lifecycle.md) | Agent Lifecycle | full lifecycle | spark, orin |

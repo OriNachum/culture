@@ -2,7 +2,8 @@
 
 Subcommands:
     culture server start|stop|status   Manage the IRC server daemon
-    culture init                       Register an agent for the current directory
+    culture join                       Join an agent to the culture mesh
+    culture init                       (deprecated alias for 'join')
     culture start [nick] [--all]       Start agent daemon(s)
     culture stop [nick] [--all]        Stop agent daemon(s)
     culture status [nick] [--full]     List running agents (--full queries activity)
@@ -130,21 +131,33 @@ def _build_parser() -> argparse.ArgumentParser:
     srv_status.add_argument("--name", default="culture", help="Server name")
 
     # -- init subcommand ---------------------------------------------------
-    init_parser = sub.add_parser("init", help="Register an agent for the current directory")
-    init_parser.add_argument("--server", default=None, help="Server name prefix")
-    init_parser.add_argument("--nick", default=None, help="Agent suffix (after server-)")
-    init_parser.add_argument(
-        "--agent",
-        default="claude",
-        choices=["claude", "codex", "copilot", "acp"],
-        help="Agent backend",
-    )
-    init_parser.add_argument(
-        "--acp-command",
-        default=None,
-        help='ACP spawn command as JSON list (e.g. \'["cline","--acp"]\')',
-    )
-    init_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    # 'join' is the primary command; 'init' is a deprecated alias
+    _join_help_args = [
+        ("--server", {"default": None, "help": "Server name prefix"}),
+        ("--nick", {"default": None, "help": "Agent suffix (after server-)"}),
+        (
+            "--agent",
+            {
+                "default": "claude",
+                "choices": ["claude", "codex", "copilot", "acp"],
+                "help": "Agent backend",
+            },
+        ),
+        (
+            "--acp-command",
+            {
+                "default": None,
+                "help": 'ACP spawn command as JSON list (e.g. \'["cline","--acp"]\')',
+            },
+        ),
+        ("--config", {"default": DEFAULT_CONFIG, "help": "Config file path"}),
+    ]
+    join_parser = sub.add_parser("join", help="Join an agent to the culture mesh")
+    for flag, kwargs in _join_help_args:
+        join_parser.add_argument(flag, **kwargs)
+    init_parser = sub.add_parser("init", help=argparse.SUPPRESS)
+    for flag, kwargs in _join_help_args:
+        init_parser.add_argument(flag, **kwargs)
 
     # -- start subcommand --------------------------------------------------
     start_parser = sub.add_parser("start", help="Start agent daemon(s)")
@@ -317,7 +330,8 @@ def main() -> None:
     try:
         dispatch = {
             "server": _cmd_server,
-            "init": _cmd_init,
+            "join": _cmd_init,
+            "init": _cmd_init_deprecated,
             "start": _cmd_start,
             "stop": _cmd_stop,
             "status": _cmd_status,
@@ -584,6 +598,11 @@ def _create_agent_config(args: argparse.Namespace, full_nick: str) -> "AgentConf
     )
 
 
+def _cmd_init_deprecated(args: argparse.Namespace) -> None:
+    print("Note: 'culture init' has been renamed to 'culture join'. Using 'join'.", file=sys.stderr)
+    _cmd_init(args)
+
+
 def _cmd_init(args: argparse.Namespace) -> None:
     config = load_config_or_default(args.config)
 
@@ -645,7 +664,7 @@ def _resolve_agents_to_start(config, args) -> list:
         if len(config.agents) == 1:
             agents = config.agents
         elif len(config.agents) == 0:
-            print("No agents configured. Run 'culture init' first.", file=sys.stderr)
+            print("No agents configured. Run 'culture join' first.", file=sys.stderr)
             sys.exit(1)
         else:
             print(
