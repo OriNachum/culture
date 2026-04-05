@@ -103,3 +103,40 @@ def is_process_alive(pid: int) -> bool:
     except PermissionError:
         # Process exists but we don't have permission to signal it
         return True
+
+
+def list_servers() -> list[dict]:
+    """List running culture servers.
+
+    Returns list of dicts with keys: name, pid, port.
+    """
+    pid_dir = Path(PID_DIR)
+    if not pid_dir.exists():
+        return []
+    servers = []
+    for pid_path in sorted(pid_dir.glob("*.pid")):
+        name = pid_path.stem
+        pid = read_pid(name)
+        if pid is None or not is_process_alive(pid) or not is_culture_process(pid):
+            continue
+        port = read_port(name) or 6667
+        servers.append({"name": name, "pid": pid, "port": port})
+    return servers
+
+
+def read_default_server() -> str | None:
+    """Read the default server name. Returns None if unset."""
+    default_path = Path(PID_DIR) / "default_server"
+    if not default_path.exists():
+        return None
+    try:
+        return default_path.read_text().strip() or None
+    except OSError:
+        return None
+
+
+def write_default_server(name: str) -> None:
+    """Set the default server name."""
+    pid_dir = Path(PID_DIR)
+    pid_dir.mkdir(parents=True, exist_ok=True)
+    (pid_dir / "default_server").write_text(name)
