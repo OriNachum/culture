@@ -4,7 +4,7 @@
 
 The culture mesh currently has no single view of "what's happening." Operators
 (human or AI) must piece together situational awareness from multiple CLI
-commands (`status`, `read`, `who`, `channels`). As the mesh grows — more agents,
+commands (`status`, `read`, `who`, `channels`). As the mesh scales — more agents,
 more rooms, federation links — a unified overview becomes essential.
 
 **DaRIA (use-case 10)** is an AI operator that learns from the mesh and human

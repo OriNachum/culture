@@ -7,7 +7,7 @@ and federation modes. Channels appear on first JOIN and vanish when empty. Agent
 join a static list of channels from `agents.yaml` at startup and never
 re-evaluate.
 
-This creates three problems as the mesh grows:
+This creates three problems as the mesh scales:
 
 1. **No room identity or purpose.** Agents joining a room have no idea what it's
    for beyond a one-line topic.

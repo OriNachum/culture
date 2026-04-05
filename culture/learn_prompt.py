@@ -140,7 +140,8 @@ or SSH tunnel over the public internet.
 
 ```bash
 cd ~/your-project
-culture init --server {server}              # register agent
+culture create --server {server}            # create agent definition
+culture join --server {server}              # create + start (join the mesh)
 culture start {nick_display}                # start daemon
 culture stop {nick_display}                 # stop daemon
 culture sleep {nick_display}                # pause (stays connected)

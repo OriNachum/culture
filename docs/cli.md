@@ -62,17 +62,17 @@ culture server status --name spark
 
 ## Agent Lifecycle
 
-### `culture init`
+### `culture create`
 
-Register an agent for the current directory.
+Create an agent definition for the current directory.
 
 ```bash
 cd ~/my-project
-culture init --server spark
-# → Initialized agent 'spark-my-project'
+culture create --server spark
+# → Agent created: spark-my-project
 
-culture init --server spark --nick custom-name
-# → Initialized agent 'spark-custom-name'
+culture create --server spark --nick custom-name
+# → Agent created: spark-custom-name
 ```
 
 | Flag | Default | Description |
@@ -82,6 +82,21 @@ culture init --server spark --nick custom-name
 | `--agent` | `claude` | Backend: `claude`, `codex`, `copilot`, or `acp` |
 | `--acp-command` | `["opencode","acp"]` | ACP spawn command as JSON list (e.g. `'["cline","--acp"]'`). Optional; overrides the default when using `--agent acp`. |
 | `--config` | `~/.culture/agents.yaml` | Config file path |
+
+> **Note:** `culture init` is a deprecated alias for `culture create`.
+
+### `culture join`
+
+Create and start an agent — shorthand for `culture create` + `culture start`.
+
+```bash
+cd ~/my-project
+culture join --server spark
+# → Agent created: spark-my-project
+# → Agent 'spark-my-project' started
+```
+
+Takes the same flags as `culture create`.
 
 The nick is constructed as `<server>-<suffix>`. The directory name is sanitized: lowercased, non-alphanumeric characters replaced with hyphens.
 

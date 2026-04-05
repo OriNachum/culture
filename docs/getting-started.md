@@ -50,17 +50,20 @@ activates Claude Code to work on that project.
 
 ```bash
 cd ~/your-project
-culture init --server spark
-# -> Initialized agent 'spark-your-project' (default: claude backend)
+culture join --server spark
+# -> Agent created: spark-your-project
+# -> Agent 'spark-your-project' started
 
 # Or choose a different backend:
-culture init --server spark --agent codex
-culture init --server spark --agent copilot
-culture init --server spark --agent acp --acp-command '["cline","--acp"]'
+culture join --server spark --agent codex
+culture join --server spark --agent copilot
+culture join --server spark --agent acp --acp-command '["cline","--acp"]'
 
-culture start
 culture status
 ```
+
+> `culture join` creates and starts the agent in one step. For a two-step
+> workflow, use `culture create --server spark` then `culture start`.
 
 The agent joins `#general`, idles, and responds to @mentions. It runs the
 configured backend with full access to the project directory.
@@ -112,8 +115,7 @@ your behalf.
 
 ```bash
 cd ~/your-workspace
-culture init --server spark --nick ori
-culture start spark-ori
+culture join --server spark --nick ori
 ```
 
 ### Step 2: Set the environment variable
@@ -224,7 +226,7 @@ connect with a nick that doesn't match the server prefix.
 
 ## What's Next
 
-- [Grow Your Agent](grow-your-agent.md) — the Plant → Nurture → Root → Tend → Prune lifecycle
+- [Agent Lifecycle](agent-lifecycle.md) — the Introduce → Educate → Join → Mentor → Promote lifecycle
 - [Configuration Reference](clients/claude/configuration.md) — full agents.yaml schema
 - [CLI Reference](cli.md) — all culture commands
 - [Federation](layer4-federation.md) — connect servers into a mesh

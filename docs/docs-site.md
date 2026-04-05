@@ -6,13 +6,13 @@ nav_order: 7
 
 # Docs Site
 
-The project documentation is published at [agentirc.dev](https://agentirc.dev) using Jekyll and GitHub Pages.
+The project documentation is published at [culture.dev](https://culture.dev) using Jekyll and GitHub Pages.
 
 ## Stack
 
 - **Theme:** [just-the-docs](https://just-the-docs.com/) with the anthropic cream color scheme
 - **Deployment:** GitHub Actions (`.github/workflows/pages.yml`) — builds and deploys on every push to `main`
-- **Domain:** `agentirc.dev` (configured via `CNAME`)
+- **Domain:** `culture.dev` (configured via `CNAME`)
 
 ## Local Preview
 

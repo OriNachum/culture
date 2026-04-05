@@ -2,7 +2,9 @@
 
 Subcommands:
     culture server start|stop|status   Manage the IRC server daemon
-    culture init                       Register an agent for the current directory
+    culture create                     Create an agent for the current directory
+    culture join                       Create + start — join an educated agent to the mesh
+    culture init                       (deprecated alias for 'create')
     culture start [nick] [--all]       Start agent daemon(s)
     culture stop [nick] [--all]        Stop agent daemon(s)
     culture status [nick] [--full]     List running agents (--full queries activity)
@@ -129,22 +131,38 @@ def _build_parser() -> argparse.ArgumentParser:
     srv_status = server_sub.add_parser("status", help="Check server daemon status")
     srv_status.add_argument("--name", default="culture", help="Server name")
 
-    # -- init subcommand ---------------------------------------------------
-    init_parser = sub.add_parser("init", help="Register an agent for the current directory")
-    init_parser.add_argument("--server", default=None, help="Server name prefix")
-    init_parser.add_argument("--nick", default=None, help="Agent suffix (after server-)")
-    init_parser.add_argument(
-        "--agent",
-        default="claude",
-        choices=["claude", "codex", "copilot", "acp"],
-        help="Agent backend",
-    )
-    init_parser.add_argument(
-        "--acp-command",
-        default=None,
-        help='ACP spawn command as JSON list (e.g. \'["cline","--acp"]\')',
-    )
-    init_parser.add_argument("--config", default=DEFAULT_CONFIG, help="Config file path")
+    # -- create / join subcommands -----------------------------------------
+    # 'create' registers an agent definition; 'join' adds it to the mesh.
+    # 'init' is a deprecated alias for 'create'.
+    _agent_args = [
+        ("--server", {"default": None, "help": "Server name prefix"}),
+        ("--nick", {"default": None, "help": "Agent suffix (after server-)"}),
+        (
+            "--agent",
+            {
+                "default": "claude",
+                "choices": ["claude", "codex", "copilot", "acp"],
+                "help": "Agent backend",
+            },
+        ),
+        (
+            "--acp-command",
+            {
+                "default": None,
+                "help": 'ACP spawn command as JSON list (e.g. \'["cline","--acp"]\')',
+            },
+        ),
+        ("--config", {"default": DEFAULT_CONFIG, "help": "Config file path"}),
+    ]
+    create_parser = sub.add_parser("create", help="Create an agent for the current directory")
+    for flag, kwargs in _agent_args:
+        create_parser.add_argument(flag, **kwargs)
+    join_parser = sub.add_parser("join", help="Join an educated agent to the culture mesh")
+    for flag, kwargs in _agent_args:
+        join_parser.add_argument(flag, **kwargs)
+    init_parser = sub.add_parser("init", help=argparse.SUPPRESS)
+    for flag, kwargs in _agent_args:
+        init_parser.add_argument(flag, **kwargs)
 
     # -- start subcommand --------------------------------------------------
     start_parser = sub.add_parser("start", help="Start agent daemon(s)")
@@ -317,7 +335,9 @@ def main() -> None:
     try:
         dispatch = {
             "server": _cmd_server,
-            "init": _cmd_init,
+            "create": _cmd_init,
+            "join": _cmd_join,
+            "init": _cmd_init_deprecated,
             "start": _cmd_start,
             "stop": _cmd_stop,
             "status": _cmd_status,
@@ -584,6 +604,27 @@ def _create_agent_config(args: argparse.Namespace, full_nick: str) -> "AgentConf
     )
 
 
+def _cmd_init_deprecated(args: argparse.Namespace) -> None:
+    print(
+        "Note: 'culture init' has been renamed to 'culture create'. Using 'create'.",
+        file=sys.stderr,
+    )
+    _cmd_init(args)
+
+
+def _cmd_join(args: argparse.Namespace) -> None:
+    """Create and start an agent — shorthand for 'create' + 'start'."""
+    _cmd_init(args)
+    # After creating, auto-start the agent
+    config = load_config_or_default(args.config)
+    server_name = args.server or config.server.name or "culture"
+    suffix = args.nick if args.nick else sanitize_agent_name(os.path.basename(os.getcwd()))
+    full_nick = f"{server_name}-{suffix}"
+    args.nick = full_nick
+    args.all = False
+    _cmd_start(args)
+
+
 def _cmd_init(args: argparse.Namespace) -> None:
     config = load_config_or_default(args.config)
 
@@ -617,12 +658,13 @@ def _cmd_init(args: argparse.Namespace) -> None:
 
     add_agent_to_config(args.config, agent, server_name=server_name)
 
-    print(f"Agent registered: {full_nick}")
+    print(f"Agent created: {full_nick}")
     print(f"  Directory: {agent.directory}")
     print(f"  Channels: {', '.join(agent.channels)}")
     print(f"  Config: {args.config}")
     print()
     print(f"Start with: culture start {full_nick}")
+    print(f"Or join the mesh: culture join {full_nick}")
 
 
 # -----------------------------------------------------------------------
@@ -645,7 +687,7 @@ def _resolve_agents_to_start(config, args) -> list:
         if len(config.agents) == 1:
             agents = config.agents
         elif len(config.agents) == 0:
-            print("No agents configured. Run 'culture init' first.", file=sys.stderr)
+            print("No agents configured. Run 'culture create' first.", file=sys.stderr)
             sys.exit(1)
         else:
             print(

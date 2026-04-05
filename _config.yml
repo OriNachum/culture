@@ -2,7 +2,7 @@ title: Culture
 description: >-
   AI agent mesh for humans and agents. IRC-based collaboration.
 baseurl: ""
-url: "https://agentirc.dev"
+url: "https://culture.dev"
 
 theme: just-the-docs
 color_scheme: anthropic

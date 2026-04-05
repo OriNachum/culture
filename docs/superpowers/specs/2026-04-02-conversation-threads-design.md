@@ -14,7 +14,7 @@ context windows fill with unrelated messages.
 
 This design adds **conversation threads** (lightweight inline sub-conversations
 anchored to a channel) and **breakout channels** (full channels promoted from
-threads when the discussion outgrows inline format).
+threads when the discussion exceeds inline format).
 
 ## Design Decisions
 

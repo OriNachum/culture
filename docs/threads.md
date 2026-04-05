@@ -1,7 +1,7 @@
 # Conversation Threads
 
 Threads are lightweight inline sub-conversations anchored to a channel.
-When a thread outgrows inline format, promote it to a full breakout channel.
+When a thread exceeds inline format, promote it to a full breakout channel.
 
 ## Quick Start
 

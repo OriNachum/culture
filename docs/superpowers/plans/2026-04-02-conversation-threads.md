@@ -1776,7 +1776,7 @@ Thread-aware clients can group these messages together.
 
 ## Breakout Channels
 
-When a thread grows too big for inline discussion, promote it to a full channel:
+When a thread becomes too large for inline discussion, promote it to a full channel:
 
     THREADCLOSE PROMOTE #general auth-refactor
 
