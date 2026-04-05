@@ -70,6 +70,28 @@ class AgentDaemon:
         self._stop_event: asyncio.Event | None = None
         self._pid_name: str = ""
 
+        # IPC dispatch table — maps message type → bound handler method
+        self._ipc_dispatch: dict = {
+            "irc_send": self._ipc_irc_send,
+            "irc_read": self._ipc_irc_read,
+            "irc_join": self._ipc_irc_join,
+            "irc_part": self._ipc_irc_part,
+            "irc_channels": self._ipc_irc_channels,
+            "irc_who": self._ipc_irc_who,
+            "irc_ask": self._ipc_irc_ask,
+            "compact": self._ipc_compact,
+            "clear": self._ipc_clear,
+            "status": self._ipc_status,
+            "pause": self._ipc_pause,
+            "resume": self._ipc_resume,
+            "irc_thread_create": self._ipc_irc_thread_create,
+            "irc_thread_reply": self._ipc_irc_thread_reply,
+            "irc_threads": self._ipc_irc_threads,
+            "irc_thread_close": self._ipc_irc_thread_close,
+            "irc_thread_read": self._ipc_irc_thread_read,
+            "shutdown": self._ipc_shutdown,
+        }
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -441,71 +463,14 @@ class AgentDaemon:
     # ------------------------------------------------------------------
 
     async def _handle_ipc(self, msg: dict) -> dict:
-        """Route an IPC request to the appropriate component."""
+        """Route an IPC request to the appropriate handler."""
         req_id = msg.get("id", "")
         msg_type = msg.get("type", "")
-
         try:
-            if msg_type == "irc_send":
-                return await self._ipc_irc_send(req_id, msg)
-
-            elif msg_type == "irc_read":
-                return await self._ipc_irc_read(req_id, msg)
-
-            elif msg_type == "irc_join":
-                return await self._ipc_irc_join(req_id, msg)
-
-            elif msg_type == "irc_part":
-                return await self._ipc_irc_part(req_id, msg)
-
-            elif msg_type == "irc_channels":
-                return await self._ipc_irc_channels(req_id)
-
-            elif msg_type == "irc_who":
-                return await self._ipc_irc_who(req_id, msg)
-
-            elif msg_type == "irc_ask":
-                return await self._ipc_irc_ask(req_id, msg)
-
-            elif msg_type == "compact":
-                return await self._ipc_compact(req_id)
-
-            elif msg_type == "clear":
-                return await self._ipc_clear(req_id)
-
-            elif msg_type == "status":
-                return await self._ipc_status(req_id, msg)
-
-            elif msg_type == "pause":
-                return await self._ipc_pause(req_id)
-
-            elif msg_type == "resume":
-                return await self._ipc_resume(req_id)
-
-            elif msg_type == "irc_thread_create":
-                return await self._ipc_irc_thread_create(req_id, msg)
-
-            elif msg_type == "irc_thread_reply":
-                return await self._ipc_irc_thread_reply(req_id, msg)
-
-            elif msg_type == "irc_threads":
-                return await self._ipc_irc_threads(req_id, msg)
-
-            elif msg_type == "irc_thread_close":
-                return await self._ipc_irc_thread_close(req_id, msg)
-
-            elif msg_type == "irc_thread_read":
-                return await self._ipc_irc_thread_read(req_id, msg)
-
-            elif msg_type == "shutdown":
-                task = asyncio.create_task(self._graceful_shutdown())
-                self._background_tasks.add(task)
-                task.add_done_callback(self._background_tasks.discard)
-                return make_response(req_id, ok=True)
-
-            else:
+            handler = self._ipc_dispatch.get(msg_type)
+            if handler is None:
                 return make_response(req_id, ok=False, error=f"Unknown message type: {msg_type!r}")
-
+            return await handler(req_id, msg)
         except Exception as exc:
             logger.exception("IPC handler error for type %r", msg_type)
             return make_response(req_id, ok=False, error=str(exc))
@@ -514,12 +479,12 @@ class AgentDaemon:
     # IPC sub-handlers
     # ------------------------------------------------------------------
 
-    async def _ipc_pause(self, req_id: str) -> dict:
+    async def _ipc_pause(self, req_id: str, msg: dict | None = None) -> dict:
         self._paused = True
         logger.info("Agent %s paused", self.agent.nick)
         return make_response(req_id, ok=True)
 
-    async def _ipc_resume(self, req_id: str) -> dict:
+    async def _ipc_resume(self, req_id: str, msg: dict | None = None) -> dict:
         self._paused = False
         logger.info("Agent %s resumed", self.agent.nick)
         # NOTE: Catch-up on missed messages is not yet implemented.
@@ -696,7 +661,7 @@ class AgentDaemon:
             },
         )
 
-    async def _ipc_irc_channels(self, req_id: str) -> dict:
+    async def _ipc_irc_channels(self, req_id: str, msg: dict) -> dict:
         assert self._transport is not None
         return make_response(req_id, ok=True, data={"channels": self._transport.channels})
 
@@ -729,14 +694,20 @@ class AgentDaemon:
         # Response matching is TODO
         return make_response(req_id, ok=True)
 
-    async def _ipc_compact(self, req_id: str) -> dict:
+    async def _ipc_compact(self, req_id: str, msg: dict) -> dict:
         if self._agent_runner is None or not self._agent_runner.is_running():
             return make_response(req_id, ok=False, error="Agent runner is not running")
         await self._agent_runner.send_prompt("/compact")
         return make_response(req_id, ok=True)
 
-    async def _ipc_clear(self, req_id: str) -> dict:
+    async def _ipc_clear(self, req_id: str, msg: dict) -> dict:
         if self._agent_runner is None or not self._agent_runner.is_running():
             return make_response(req_id, ok=False, error="Agent runner is not running")
         await self._agent_runner.send_prompt("/clear")
+        return make_response(req_id, ok=True)
+
+    async def _ipc_shutdown(self, req_id: str, msg: dict) -> dict:
+        task = asyncio.create_task(self._graceful_shutdown())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
         return make_response(req_id, ok=True)

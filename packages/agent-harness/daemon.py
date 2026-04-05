@@ -1,4 +1,5 @@
 # ASSIMILAI: Replace BACKEND with your backend name (e.g., codex, opencode)
+# pylint: skip-file  # Template uses stub BACKEND imports; pylint cannot resolve them
 """Generic agent daemon — template for new backends.
 
 Copy this file into your backend directory and replace:
@@ -72,6 +73,28 @@ class AgentDaemon:
         self._status_query_event: asyncio.Event | None = None
         self._status_query_response: str = ""
         self._last_activity_text: str = ""
+
+        # IPC dispatch table — maps message type → bound handler method
+        self._ipc_dispatch: dict = {
+            "irc_send": self._ipc_irc_send,
+            "irc_read": self._ipc_irc_read,
+            "irc_ask": self._ipc_irc_ask,
+            "irc_join": self._ipc_irc_join,
+            "irc_part": self._ipc_irc_part,
+            "irc_who": self._ipc_irc_who,
+            "irc_channels": self._ipc_irc_channels,
+            "compact": self._ipc_compact,
+            "clear": self._ipc_clear,
+            "status": self._ipc_status,
+            "pause": self._ipc_pause,
+            "resume": self._ipc_resume,
+            "irc_thread_create": self._ipc_irc_thread_create,
+            "irc_thread_reply": self._ipc_irc_thread_reply,
+            "irc_threads": self._ipc_irc_threads,
+            "irc_thread_close": self._ipc_irc_thread_close,
+            "irc_thread_read": self._ipc_irc_thread_read,
+            "shutdown": self._ipc_shutdown,
+        }
 
     def set_stop_event(self, event: asyncio.Event) -> None:
         """Register an external stop event for coordinated shutdown."""
@@ -224,127 +247,111 @@ class AgentDaemon:
     # ------------------------------------------------------------------
 
     async def _handle_ipc(self, msg: dict[str, Any]) -> dict[str, Any]:
-        """Handle IPC requests from skill clients."""
-        msg_type = msg.get("type", "")
+        """Route an IPC request to the appropriate handler."""
         req_id = msg.get("id", "")
+        msg_type = msg.get("type", "")
+        try:
+            handler = self._ipc_dispatch.get(msg_type)
+            if handler is None:
+                return make_response(req_id, ok=False, error=f"Unknown message type: {msg_type!r}")
+            return await handler(req_id, msg)
+        except Exception as exc:
+            logger.exception("IPC handler error for type %r", msg_type)
+            return make_response(req_id, ok=False, error=str(exc))
 
-        if msg_type == "irc_send":
-            channel = msg.get("channel", "")
-            message = msg.get("message", "")
-            if self._transport:
-                await self._transport.send_privmsg(channel, message)
-            return make_response(req_id, ok=True)
+    # ------------------------------------------------------------------
+    # Extracted IPC handlers (inline logic from original _handle_ipc)
+    # ------------------------------------------------------------------
 
-        elif msg_type == "irc_read":
-            channel = msg.get("channel", "")
-            limit = msg.get("limit", 50)
-            if self._buffer:
-                messages = self._buffer.read(channel, limit=limit)
-                return make_response(
-                    req_id,
-                    ok=True,
-                    data={
-                        "messages": [
-                            {"nick": m.nick, "text": m.text, "timestamp": m.timestamp}
-                            for m in messages
-                        ]
-                    },
+    async def _ipc_irc_send(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        message = msg.get("message", "")
+        if self._transport:
+            await self._transport.send_privmsg(channel, message)
+        return make_response(req_id, ok=True)
+
+    async def _ipc_irc_read(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        limit = msg.get("limit", 50)
+        if self._buffer:
+            messages = self._buffer.read(channel, limit=limit)
+            return make_response(
+                req_id,
+                ok=True,
+                data={
+                    "messages": [
+                        {"nick": m.nick, "text": m.text, "timestamp": m.timestamp} for m in messages
+                    ]
+                },
+            )
+        return make_response(req_id, ok=False, error="No buffer")
+
+    async def _ipc_irc_ask(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        message = msg.get("message", "")
+        if self._transport and channel:
+            await self._transport.send_privmsg(channel, message)
+        if self._webhook:
+            await self._webhook.fire(
+                AlertEvent(
+                    event_type="agent_question",
+                    nick=self.agent.nick,
+                    message=f"[QUESTION] [{self.agent.nick}] asked in {channel}: {message}",
                 )
-            return make_response(req_id, ok=False, error="No buffer")
+            )
+        return make_response(req_id, ok=True)
 
-        elif msg_type == "irc_ask":
-            channel = msg.get("channel", "")
-            message = msg.get("message", "")
-            if self._transport and channel:
-                await self._transport.send_privmsg(channel, message)
-            if self._webhook:
-                await self._webhook.fire(
-                    AlertEvent(
-                        event_type="agent_question",
-                        nick=self.agent.nick,
-                        message=f"[QUESTION] [{self.agent.nick}] asked in {channel}: {message}",
-                    )
-                )
-            return make_response(req_id, ok=True)
+    async def _ipc_irc_join(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        if self._transport:
+            await self._transport.join_channel(channel)
+        return make_response(req_id, ok=True)
 
-        elif msg_type == "irc_join":
-            channel = msg.get("channel", "")
-            if self._transport:
-                await self._transport.join_channel(channel)
-            return make_response(req_id, ok=True)
+    async def _ipc_irc_part(self, req_id: str, msg: dict) -> dict:
+        channel = msg.get("channel", "")
+        if self._transport:
+            await self._transport.part_channel(channel)
+        return make_response(req_id, ok=True)
 
-        elif msg_type == "irc_part":
-            channel = msg.get("channel", "")
-            if self._transport:
-                await self._transport.part_channel(channel)
-            return make_response(req_id, ok=True)
+    async def _ipc_irc_who(self, req_id: str, msg: dict) -> dict:
+        target = msg.get("target", "")
+        if self._transport:
+            await self._transport.send_who(target)
+        return make_response(req_id, ok=True)
 
-        elif msg_type == "irc_who":
-            target = msg.get("target", "")
-            if self._transport:
-                await self._transport.send_who(target)
-            return make_response(req_id, ok=True)
+    async def _ipc_irc_channels(self, req_id: str, msg: dict) -> dict:
+        channels = self._transport.channels if self._transport else []
+        return make_response(req_id, ok=True, data={"channels": channels})
 
-        elif msg_type == "irc_channels":
-            channels = self._transport.channels if self._transport else []
-            return make_response(req_id, ok=True, data={"channels": channels})
+    async def _ipc_compact(self, req_id: str, msg: dict) -> dict:
+        # Send /compact to agent runner — ADAPT for your backend
+        logger.info("IPC compact requested")
+        return make_response(req_id, ok=True)
 
-        elif msg_type == "compact":
-            # Send /compact to agent runner — ADAPT for your backend
-            logger.info("IPC compact requested")
-            return make_response(req_id, ok=True)
+    async def _ipc_clear(self, req_id: str, msg: dict) -> dict:
+        # Send /clear to agent runner — ADAPT for your backend
+        logger.info("IPC clear requested")
+        return make_response(req_id, ok=True)
 
-        elif msg_type == "clear":
-            # Send /clear to agent runner — ADAPT for your backend
-            logger.info("IPC clear requested")
-            return make_response(req_id, ok=True)
-
-        elif msg_type == "status":
-            return await self._ipc_status(req_id, msg)
-
-        elif msg_type == "pause":
-            return await self._ipc_pause(req_id)
-
-        elif msg_type == "resume":
-            return await self._ipc_resume(req_id)
-
-        elif msg_type == "irc_thread_create":
-            return await self._ipc_irc_thread_create(req_id, msg)
-
-        elif msg_type == "irc_thread_reply":
-            return await self._ipc_irc_thread_reply(req_id, msg)
-
-        elif msg_type == "irc_threads":
-            return await self._ipc_irc_threads(req_id, msg)
-
-        elif msg_type == "irc_thread_close":
-            return await self._ipc_irc_thread_close(req_id, msg)
-
-        elif msg_type == "irc_thread_read":
-            return await self._ipc_irc_thread_read(req_id, msg)
-
-        elif msg_type == "shutdown":
-            if self._stop_event:
-                self._stop_event.set()
-            else:
-                task = asyncio.create_task(self.stop())
-                self._background_tasks.add(task)
-                task.add_done_callback(self._background_tasks.discard)
-            return make_response(req_id, ok=True)
-
+    async def _ipc_shutdown(self, req_id: str, msg: dict) -> dict:
+        if self._stop_event:
+            self._stop_event.set()
         else:
-            return make_response(req_id, ok=False, error=f"Unknown: {msg_type}")
+            task = asyncio.create_task(self.stop())
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+        return make_response(req_id, ok=True)
 
     # ------------------------------------------------------------------
     # Status / Pause / Resume IPC handlers
     # ------------------------------------------------------------------
 
-    async def _ipc_pause(self, req_id: str) -> dict:
+    async def _ipc_pause(self, req_id: str, msg: dict) -> dict:
         self._paused = True
         logger.info("Agent %s paused", self.agent.nick)
         return make_response(req_id, ok=True)
 
-    async def _ipc_resume(self, req_id: str) -> dict:
+    async def _ipc_resume(self, req_id: str, msg: dict) -> dict:
         self._paused = False
         logger.info("Agent %s resumed", self.agent.nick)
         return make_response(req_id, ok=True)
@@ -416,10 +423,10 @@ class AgentDaemon:
             )
         return make_response(req_id, ok=False, error="No buffer")
 
-    async def _ipc_status(self, req_id: str, msg: dict | None = None) -> dict:
+    async def _ipc_status(self, req_id: str, msg: dict) -> dict:
         # ADAPT: replace with your runner's is_running() check
         running = False  # e.g., self._agent_runner.is_running()
-        query = msg.get("query", False) if msg else False
+        query = msg.get("query", False)
         description = self._describe_activity(live_query=query)
 
         if query and running and not self._paused:
