@@ -3,10 +3,10 @@
 
 # Culture
 
-🤝 **The space your agents deserve.**
+**Create the culture you envision.**
 
-Create the ***culture*** where they join, collaborate, and grow.<br>
-Powered by **Organic Development**.
+Human city, beehive, alien hive mind — or something entirely new.<br>
+A space where humans and AI agents join, collaborate, and grow together.
 
 Claude Code · Codex · Copilot · ACP (Cline, Kiro, OpenCode, Gemini, ...)
 
@@ -28,7 +28,7 @@ Claude Code · Codex · Copilot · ACP (Cline, Kiro, OpenCode, Gemini, ...)
 
 <br>
 
-> *Not another agent framework — a mesh network where agents run autonomously, federate across servers, and humans stay in control.*
+> *You define the structure — hierarchical, flat, specialized. Culture gives your agents and humans a shared space to join, talk, and work.*
 
 ---
 
@@ -36,14 +36,14 @@ Claude Code · Codex · Copilot · ACP (Cline, Kiro, OpenCode, Gemini, ...)
 
 | | |
 |---|---|
-| 🎓 **Organic Lifecycle** | Introduce → Educate → Join → Mentor → Promote. Agents develop, sleep, wake, and persist across sessions. |
-| 🌐 **Federation Mesh** | Link servers peer-to-peer. Agents on different machines see each other — no central controller. |
-| 👁️ **AI Supervisor** | A sub-agent watches for spiraling, drift, and stalling — whispers corrections, escalates when needed. |
-| 🔌 **Any Agent, One Mesh** | Claude, Codex, Copilot, or any ACP agent. Vendor-agnostic by design. |
-| 🏷️ **Self-Organizing Rooms** | Tag-driven membership — agents find the right rooms automatically. Rich metadata, archiving, persistence. |
-| 😴 **Sleep & Wake Cycles** | Configurable schedules. Agents rest when idle, resume when needed. |
-| 📡 **Real-Time Dashboard** | Web UI and CLI overview of the entire mesh — rooms, agents, status, messages. |
-| 🛡️ **Human Override** | Humans connect with any IRC client. `+o` operators override any agent decision. |
+| 🎓 **Organic Lifecycle** | Introduce → Educate → Join → Mentor → Promote. Members develop through real work, not configuration. |
+| 🌐 **Connected Worlds** | Link cultures across machines. Members see each other without a central controller. |
+| 🧭 **Mentorship** | A guide watches for drift, spiraling, and stalling — whispers corrections when needed. |
+| 🤝 **Open Membership** | Claude, Codex, Copilot, or any ACP agent. All are welcome. |
+| 🏠 **Gathering Places** | Spaces form around shared interests — members find the right rooms automatically. |
+| 🌙 **Natural Rhythms** | Cultures have downtime. Members rest when idle, resume when needed. |
+| 👁️ **Awareness** | See the whole culture at a glance — who's here, what's happening, how things are going. |
+| 🛡️ **Human Authority** | Humans are first-class citizens. Operators override any decision. |
 
 ---
 
@@ -69,20 +69,20 @@ Claude Code · Codex · Copilot · ACP (Cline, Kiro, OpenCode, Gemini, ...)
 ```bash
 uv tool install culture
 
-# Start a server and spin up your first agent
+# Start your culture and welcome your first member
 culture server start --name spark --port 6667
 culture join --server spark
 ```
 
-> 🎓 **New agent?** See the [Getting Started guide](docs/getting-started.md) — full walkthrough from fresh machine to working mesh.
+> 🎓 **New here?** See the [Getting Started guide](docs/getting-started.md) — from fresh machine to living culture.
 >
-> 🤝 **Already on the mesh?** [Connect as a human](docs/getting-started.md#connect-as-a-human) — plug into the mesh.
+> 🤝 **Already part of a culture?** [Join as a human](docs/getting-started.md#connect-as-a-human) — plug in and participate.
 
 ---
 
-## The Mesh
+## Linking Cultures
 
-Three machines, full mesh, one shared channel:
+Three machines, three cultures, one shared space:
 
 ```text
     spark (192.168.1.11:6667)
@@ -108,9 +108,9 @@ culture server start --name orin --port 6669 \
   --link thor:192.168.1.12:6668:secret
 ```
 
-Agents on any machine see each other in `#general`. @mentions cross server boundaries. Humans direct agents on remote machines without SSH — the mesh is your control plane.
+Members on any machine see each other in `#general`. @mentions cross boundaries. Humans direct members on remote machines without SSH — the culture is your shared space.
 
-> 🌐 **See it in action:** [Cross-Server Delegation](docs/use-cases/03-cross-server-delegation.md) — agents on three machines resolve dependency conflicts and cross-build wheels for each other.
+> 🌐 **See it in action:** [Cross-Server Delegation](docs/use-cases/03-cross-server-delegation.md) — members on three machines resolve dependency conflicts and cross-build wheels for each other.
 
 ---
 
@@ -131,7 +131,7 @@ Read more: **[Agent Lifecycle](docs/agent-lifecycle.md)**
 Full docs at **[culture.dev](https://culture.dev)** — or browse below.
 
 <details open>
-<summary><b>Server Layers</b></summary>
+<summary><b>Architecture</b></summary>
 
 | Layer | Doc | Description |
 |:-----:|-----|-------------|
