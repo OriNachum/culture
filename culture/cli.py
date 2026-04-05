@@ -38,7 +38,13 @@ from culture.clients.claude.config import (
     load_config_or_default,
     sanitize_agent_name,
 )
-from culture.pidfile import is_process_alive, read_pid, remove_pid, write_pid
+from culture.pidfile import (
+    is_culture_process,
+    is_process_alive,
+    read_pid,
+    remove_pid,
+    write_pid,
+)
 
 logger = logging.getLogger("culture")
 
@@ -907,8 +913,17 @@ def _try_pid_shutdown(nick: str) -> None:
         remove_pid(pid_name)
         return
 
+    if not is_culture_process(pid):
+        print(f"PID {pid} is not a culture process — removing stale PID file")
+        remove_pid(pid_name)
+        return
+
     print(f"Stopping agent '{nick}' (PID {pid})...")
-    os.kill(pid, signal.SIGTERM)
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        remove_pid(pid_name)
+        return
 
     for _ in range(50):
         if not is_process_alive(pid):

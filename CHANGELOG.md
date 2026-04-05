@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.7] - 2026-04-05
+
+
+### Fixed
+
+- Validate PID ownership via /proc/<pid>/cmdline before os.kill() to prevent signaling unrelated processes after PID reuse (SonarCloud S4828)
+- Wrap initial SIGTERM in try/except ProcessLookupError for race condition safety
+
 ## [1.0.6] - 2026-04-05
 
 
