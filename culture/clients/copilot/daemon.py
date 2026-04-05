@@ -354,9 +354,8 @@ class CopilotDaemon:
             channel,
         )
 
-    async def _on_agent_message(self, msg: dict) -> None:
-        """Relay agent text to IRC and feed to supervisor."""
-        # Dequeue the relay target that corresponds to this turn
+    async def _relay_response_to_irc(self, msg: dict) -> None:
+        """Dequeue the next relay target and send agent text lines to IRC."""
         relay_target = self._mention_targets.popleft() if self._mention_targets else None
         if self._transport and relay_target:
             content = msg.get("content", [])
@@ -364,16 +363,13 @@ class CopilotDaemon:
                 if item.get("type") == "text":
                     text = item["text"].strip()
                     if text:
-                        # Split long messages into IRC-friendly chunks
                         for line in text.split("\n"):
                             line = line.strip()
                             if line:
                                 await self._transport.send_privmsg(relay_target, line)
 
-        if self._supervisor:
-            await self._supervisor.observe(msg)
-
-        # Capture last assistant text for status reporting
+    async def _capture_agent_status(self, msg: dict) -> None:
+        """Capture the last assistant text for status reporting and fulfill any pending query."""
         if msg.get("type") == "assistant":
             for block in msg.get("content", []):
                 if isinstance(block, dict) and block.get("type") == "text":
@@ -388,6 +384,15 @@ class CopilotDaemon:
                 self._status_query_response = self._last_activity_text
                 self._status_query_event.set()
 
+    async def _on_agent_message(self, msg: dict) -> None:
+        """Relay agent text to IRC and feed to supervisor."""
+        await self._relay_response_to_irc(msg)
+
+        if self._supervisor:
+            await self._supervisor.observe(msg)
+
+        await self._capture_agent_status(msg)
+
     def _build_system_prompt(self) -> str:
         if self.agent.system_prompt:
             return self.agent.system_prompt
@@ -399,29 +404,12 @@ class CopilotDaemon:
             f"When you finish a task, share results in the appropriate channel with irc_send()."
         )
 
-    async def _on_agent_exit(self, exit_code: int) -> None:
-        """Handle agent process exit with crash recovery and circuit breaker."""
+    async def _record_crash_time(self, exit_code: int) -> None:
+        """Log a crash warning, prune the sliding window, record the new crash, fire agent_error."""
         now = time.time()
-
-        if exit_code == 0:
-            logger.info("Agent %s exited cleanly", self.agent.nick)
-            if self._webhook:
-                await self._webhook.fire(
-                    AlertEvent(
-                        event_type="agent_complete",
-                        nick=self.agent.nick,
-                        message=f"Agent {self.agent.nick} completed successfully.",
-                    )
-                )
-            return
-
-        # Non-zero exit -- record crash time and check circuit breaker
         logger.warning("Agent %s crashed with exit code %d", self.agent.nick, exit_code)
-
-        # Prune old crash times outside the window
         self._crash_times = [t for t in self._crash_times if now - t < CRASH_WINDOW_SECONDS]
         self._crash_times.append(now)
-
         if self._webhook:
             await self._webhook.fire(
                 AlertEvent(
@@ -431,6 +419,11 @@ class CopilotDaemon:
                 )
             )
 
+    async def _evaluate_circuit_breaker(self) -> bool:
+        """Open the circuit breaker if crash count reached the threshold.
+
+        Returns True if the circuit was opened (caller should stop restart logic).
+        """
         if len(self._crash_times) >= MAX_CRASH_COUNT:
             self._circuit_open = True
             logger.error(
@@ -450,6 +443,25 @@ class CopilotDaemon:
                         ),
                     )
                 )
+            return True
+        return False
+
+    async def _on_agent_exit(self, exit_code: int) -> None:
+        """Handle agent process exit with crash recovery and circuit breaker."""
+        if exit_code == 0:
+            logger.info("Agent %s exited cleanly", self.agent.nick)
+            if self._webhook:
+                await self._webhook.fire(
+                    AlertEvent(
+                        event_type="agent_complete",
+                        nick=self.agent.nick,
+                        message=f"Agent {self.agent.nick} completed successfully.",
+                    )
+                )
+            return
+
+        await self._record_crash_time(exit_code)
+        if await self._evaluate_circuit_breaker():
             return
 
         # Schedule restart after delay
