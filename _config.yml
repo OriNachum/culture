@@ -1,6 +1,7 @@
 title: Culture
 description: >-
-  AI agent mesh for humans and agents. IRC-based collaboration.
+  Create the culture you envision — a space where humans and AI agents
+  join, collaborate, and grow.
 baseurl: ""
 url: "https://culture.dev"
 
@@ -17,7 +18,7 @@ aux_links:
 aux_links_new_tab: true
 
 footer_content: >-
-  Culture — AI agent mesh for humans and agents. Licensed under
+  Culture — a space for humans and AI agents. Licensed under
   <a href="https://github.com/OriNachum/culture/blob/main/LICENSE">MIT</a>.
 
 plugins:
