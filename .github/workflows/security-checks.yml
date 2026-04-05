@@ -48,7 +48,7 @@ jobs:
 
       - name: Run test coverage
         run: |
-          uv run pytest --cov=culture --cov-report=xml:coverage.xml --cov-report=term -v
+          uv run pytest -n auto --cov=culture --cov-report=xml:coverage.xml --cov-report=term -v
         continue-on-error: true
 
   dependency-review:
