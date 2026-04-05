@@ -131,24 +131,28 @@ class ServerLink:
         self._got_server = True
         await self._try_complete_handshake()
 
-    async def _try_complete_handshake(self) -> None:
-        if not (self._got_pass and self._got_server):
-            return
+    async def _find_link_config(self, peer_name: str) -> None:
+        """Look up link config for an inbound peer and apply password/trust.
 
-        # For inbound links, look up expected password and trust by peer name
-        if not self.initiator and self.password is None:
-            link_config = None
-            for lc in self.server.config.links:
-                if lc.name == self.peer_name:
-                    link_config = lc
-                    break
-            if not link_config:
-                logger.warning("No link config for peer %s", self.peer_name)
-                await self.send_raw(f"ERROR :No link configured for {self.peer_name}")
-                raise ConnectionError(f"No link config for {self.peer_name}")
-            self.password = link_config.password
-            self.trust = link_config.trust
+        Sends ERROR and raises ConnectionError if no config is found.
+        """
+        link_config = None
+        for lc in self.server.config.links:
+            if lc.name == peer_name:
+                link_config = lc
+                break
+        if not link_config:
+            logger.warning("No link config for peer %s", peer_name)
+            await self.send_raw(f"ERROR :No link configured for {peer_name}")
+            raise ConnectionError(f"No link config for {peer_name}")
+        self.password = link_config.password
+        self.trust = link_config.trust
 
+    async def _validate_peer_credentials(self) -> None:
+        """Check password, duplicate name, and self-link.
+
+        Sends ERROR and raises ConnectionError on any failure.
+        """
         if self._peer_pass != self.password:
             logger.warning("Bad password from peer %s", self.peer_name)
             await self.send_raw(f"ERROR :Bad password")
@@ -164,6 +168,16 @@ class ServerLink:
             logger.warning("Peer has same name as us: %s", self.peer_name)
             await self.send_raw(f"ERROR :Cannot link to self")
             raise ConnectionError("Cannot link to self")
+
+    async def _try_complete_handshake(self) -> None:
+        if not (self._got_pass and self._got_server):
+            return
+
+        # For inbound links, look up expected password and trust by peer name
+        if not self.initiator and self.password is None:
+            await self._find_link_config(self.peer_name)
+
+        await self._validate_peer_credentials()
 
         self._authenticated = True
         self.server.links[self.peer_name] = self
@@ -701,79 +715,90 @@ class ServerLink:
 
     # --- Relay outbound ---
 
+    _RELAY_DISPATCH: dict = {}  # populated after class body
+
     async def relay_event(self, event: Event) -> None:
         """Relay a local event to the peer in S2S wire format."""
         origin = self.server.config.name
-        seq = self.server._seq
+        handler = self._RELAY_DISPATCH.get(event.type)
+        if handler:
+            await handler(self, event, origin)
 
-        if event.type == EventType.MESSAGE:
-            target = event.channel or event.data.get("target", "")
-            text = event.data.get("text", "")
-            # Filter channel messages through trust check
-            if target.startswith("#") and not self.should_relay(target):
-                return
-            if event.data.get("notice"):
-                await self.send_raw(f":{origin} SNOTICE {target} {event.nick} :{text}")
-            else:
-                await self.send_raw(f":{origin} SMSG {target} {event.nick} :{text}")
-        elif event.type == EventType.JOIN:
-            channel_name = event.channel
-            if not self.should_relay(channel_name):
-                return
-            await self.send_raw(f":{origin} SJOIN {channel_name} {event.nick}")
-        elif event.type == EventType.PART:
-            channel_name = event.channel
-            if not self.should_relay(channel_name):
-                return
-            reason = event.data.get("reason", "")
-            await self.send_raw(f":{origin} SPART {channel_name} {event.nick} :{reason}")
-        elif event.type == EventType.QUIT:
-            reason = event.data.get("reason", "Quit")
-            await self.send_raw(f":{origin} SQUITUSER {event.nick} :{reason}")
-        elif event.type == EventType.TOPIC:
-            channel_name = event.channel
-            if not self.should_relay(channel_name):
-                return
-            topic = event.data.get("topic", "")
-            await self.send_raw(f":{origin} STOPIC {channel_name} {event.nick} :{topic}")
-        elif event.type == EventType.ROOMMETA:
-            channel_name = event.channel
-            if not self.should_relay(channel_name):
-                return
-            meta = event.data.get("meta", "")
-            await self.send_raw(f":{origin} SROOMMETA {channel_name} :{meta}")
-        elif event.type == EventType.TAGS:
-            tags_str = ",".join(event.data.get("tags", []))
-            await self.send_raw(f":{origin} STAGS {event.nick} :{tags_str}")
-        elif event.type == EventType.ROOMARCHIVE:
-            channel_name = event.channel
-            archive_name = event.data.get("archive_name", "")
-            # The channel has already been renamed — check relay using the archive name
-            if not self.should_relay(archive_name):
-                return
-            await self.send_raw(f":{origin} SROOMARCHIVE {channel_name} {archive_name}")
-        elif event.type == EventType.THREAD_CREATE or event.type == EventType.THREAD_MESSAGE:
-            channel_name = event.channel
-            if not self.should_relay(channel_name):
-                return
-            thread_name = event.data.get("thread", "")
-            text = event.data.get("text", "")  # This is the prefixed text
-            await self.send_raw(
-                f":{origin} STHREAD {channel_name} {event.nick} {thread_name} :{text}"
-            )
-        elif event.type == EventType.THREAD_CLOSE:
-            channel_name = event.channel
-            if not self.should_relay(channel_name):
-                return
-            thread_name = event.data.get("thread", "")
-            summary = event.data.get("summary", "")
-            promoted_to = event.data.get("promoted_to", "")
-            close_data = summary
-            if promoted_to:
-                close_data = f"PROMOTE {promoted_to} {summary}"
-            await self.send_raw(
-                f":{origin} STHREADCLOSE {channel_name} {event.nick} {thread_name} :{close_data}"
-            )
+    async def _relay_message(self, event: Event, origin: str) -> None:
+        target = event.channel or event.data.get("target", "")
+        text = event.data.get("text", "")
+        # Filter channel messages through trust check
+        if target.startswith("#") and not self.should_relay(target):
+            return
+        if event.data.get("notice"):
+            await self.send_raw(f":{origin} SNOTICE {target} {event.nick} :{text}")
+        else:
+            await self.send_raw(f":{origin} SMSG {target} {event.nick} :{text}")
+
+    async def _relay_join(self, event: Event, origin: str) -> None:
+        channel_name = event.channel
+        if not self.should_relay(channel_name):
+            return
+        await self.send_raw(f":{origin} SJOIN {channel_name} {event.nick}")
+
+    async def _relay_part(self, event: Event, origin: str) -> None:
+        channel_name = event.channel
+        if not self.should_relay(channel_name):
+            return
+        reason = event.data.get("reason", "")
+        await self.send_raw(f":{origin} SPART {channel_name} {event.nick} :{reason}")
+
+    async def _relay_quit(self, event: Event, origin: str) -> None:
+        reason = event.data.get("reason", "Quit")
+        await self.send_raw(f":{origin} SQUITUSER {event.nick} :{reason}")
+
+    async def _relay_topic(self, event: Event, origin: str) -> None:
+        channel_name = event.channel
+        if not self.should_relay(channel_name):
+            return
+        topic = event.data.get("topic", "")
+        await self.send_raw(f":{origin} STOPIC {channel_name} {event.nick} :{topic}")
+
+    async def _relay_room_metadata(self, event: Event, origin: str) -> None:
+        channel_name = event.channel
+        if not self.should_relay(channel_name):
+            return
+        meta = event.data.get("meta", "")
+        await self.send_raw(f":{origin} SROOMMETA {channel_name} :{meta}")
+
+    async def _relay_tags(self, event: Event, origin: str) -> None:
+        tags_str = ",".join(event.data.get("tags", []))
+        await self.send_raw(f":{origin} STAGS {event.nick} :{tags_str}")
+
+    async def _relay_room_archive(self, event: Event, origin: str) -> None:
+        channel_name = event.channel
+        archive_name = event.data.get("archive_name", "")
+        # The channel has already been renamed — check relay using the archive name
+        if not self.should_relay(archive_name):
+            return
+        await self.send_raw(f":{origin} SROOMARCHIVE {channel_name} {archive_name}")
+
+    async def _relay_thread_message(self, event: Event, origin: str) -> None:
+        channel_name = event.channel
+        if not self.should_relay(channel_name):
+            return
+        thread_name = event.data.get("thread", "")
+        text = event.data.get("text", "")  # This is the prefixed text
+        await self.send_raw(f":{origin} STHREAD {channel_name} {event.nick} {thread_name} :{text}")
+
+    async def _relay_thread_close(self, event: Event, origin: str) -> None:
+        channel_name = event.channel
+        if not self.should_relay(channel_name):
+            return
+        thread_name = event.data.get("thread", "")
+        summary = event.data.get("summary", "")
+        promoted_to = event.data.get("promoted_to", "")
+        close_data = summary
+        if promoted_to:
+            close_data = f"PROMOTE {promoted_to} {summary}"
+        await self.send_raw(
+            f":{origin} STHREADCLOSE {channel_name} {event.nick} {thread_name} :{close_data}"
+        )
 
     # --- Mention notifications for remote messages ---
 
@@ -809,3 +834,20 @@ class ServerLink:
                 ],
             )
             await target_client.send(notice)
+
+
+# Populate the relay dispatch table after the class is fully defined so that
+# the unbound method references resolve correctly.
+ServerLink._RELAY_DISPATCH = {
+    EventType.MESSAGE: ServerLink._relay_message,
+    EventType.JOIN: ServerLink._relay_join,
+    EventType.PART: ServerLink._relay_part,
+    EventType.QUIT: ServerLink._relay_quit,
+    EventType.TOPIC: ServerLink._relay_topic,
+    EventType.ROOMMETA: ServerLink._relay_room_metadata,
+    EventType.TAGS: ServerLink._relay_tags,
+    EventType.ROOMARCHIVE: ServerLink._relay_room_archive,
+    EventType.THREAD_CREATE: ServerLink._relay_thread_message,
+    EventType.THREAD_MESSAGE: ServerLink._relay_thread_message,
+    EventType.THREAD_CLOSE: ServerLink._relay_thread_close,
+}
