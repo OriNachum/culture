@@ -258,6 +258,15 @@ class AgentDaemon:
             except Exception:
                 logger.exception("Poll loop error")
 
+    async def _on_turn_error(self) -> None:
+        """Clean up stale relay target when a prompt fails.
+
+        Wire this as the ``on_turn_error`` callback on your agent runner so
+        the ``_mention_targets`` deque stays in sync with the prompt queue.
+        """
+        if self._mention_targets:
+            self._mention_targets.popleft()
+
     def _on_mention(self, target: str, sender: str, text: str) -> None:
         """Called when the agent is @mentioned. Sends prompt to runner.
 

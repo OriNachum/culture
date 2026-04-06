@@ -23,6 +23,7 @@ class CopilotAgentRunner:
         skill_directories: list[str] | None = None,
         on_exit: Callable[[int], Awaitable[None]] | None = None,
         on_message: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
+        on_turn_error: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         self.model = model
         self.directory = directory
@@ -30,6 +31,7 @@ class CopilotAgentRunner:
         self.skill_directories = skill_directories or []
         self.on_exit = on_exit
         self.on_message = on_message
+        self.on_turn_error = on_turn_error
 
         self._isolated_home: str | None = None
         self._client: Any = None
@@ -158,6 +160,8 @@ class CopilotAgentRunner:
 
                 except Exception:
                     logger.exception("Copilot session turn error")
+                    if self.on_turn_error:
+                        await self.on_turn_error()
                     if not self._stopping:
                         self._running = False
                         if self.on_exit:
