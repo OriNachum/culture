@@ -124,7 +124,10 @@ async def _connect(
         remaining = deadline - asyncio.get_event_loop().time()
         if remaining <= 0:
             raise TimeoutError("Registration timed out")
-        data = await asyncio.wait_for(reader.readline(), timeout=remaining)
+        try:
+            data = await asyncio.wait_for(reader.readline(), timeout=remaining)
+        except asyncio.TimeoutError:
+            raise TimeoutError("Registration timed out") from None
         line = data.decode().strip()
         if not line:
             continue

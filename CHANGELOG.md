@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.0.1] - 2026-04-06
+
+
+### Fixed
+
+- Fix empty error message when running `culture overview` against a starting or unreachable server
+
 ## [3.0.0] - 2026-04-06
 
 

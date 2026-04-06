@@ -1593,14 +1593,28 @@ def _cmd_overview(args: argparse.Namespace) -> None:
         )
         return
 
-    mesh = asyncio.run(
-        collect_mesh_state(
-            host=config.server.host,
-            port=config.server.port,
-            server_name=config.server.name,
-            message_limit=message_limit,
+    host, port = config.server.host, config.server.port
+    try:
+        mesh = asyncio.run(
+            collect_mesh_state(
+                host=host,
+                port=port,
+                server_name=config.server.name,
+                message_limit=message_limit,
+            )
         )
-    )
+    except ConnectionRefusedError:
+        print(
+            f"Error: could not connect to {host}:{port} — is the server running?",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except (TimeoutError, OSError) as exc:
+        print(
+            f"Error: server at {host}:{port} not responding" " — it may still be starting up",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     output = render_text(
         mesh,
         room_filter=args.room,
