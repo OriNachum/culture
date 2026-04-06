@@ -3,11 +3,13 @@
 
 import pytest
 
+from culture.clients.claude.config import AgentConfig, DaemonConfig, ServerConnConfig
 from culture.mesh_config import (
     MeshAgentConfig,
     MeshConfig,
     MeshLinkConfig,
     MeshServerConfig,
+    from_daemon_config,
     load_mesh_config,
     save_mesh_config,
 )
@@ -96,3 +98,58 @@ def test_mesh_config_file_not_found():
     """Loading a missing file raises FileNotFoundError."""
     with pytest.raises(FileNotFoundError):
         load_mesh_config("/nonexistent/mesh.yaml")
+
+
+def test_from_daemon_config_strips_prefix():
+    """from_daemon_config strips server prefix from agent nicks."""
+    daemon = DaemonConfig(
+        server=ServerConnConfig(name="spark", host="localhost", port=6667),
+        agents=[
+            AgentConfig(
+                nick="spark-claude",
+                agent="claude",
+                directory="/home/user/proj",
+                channels=["#general", "#dev"],
+            ),
+            AgentConfig(
+                nick="spark-codex",
+                agent="codex",
+                directory="/home/user/other",
+                channels=["#general"],
+            ),
+        ],
+    )
+    mesh = from_daemon_config(daemon)
+
+    assert mesh.server.name == "spark"
+    assert mesh.server.host == "0.0.0.0"  # listen address, not connection target
+    assert mesh.server.port == 6667
+    assert mesh.server.links == []
+    assert len(mesh.agents) == 2
+    assert mesh.agents[0].nick == "claude"
+    assert mesh.agents[0].type == "claude"
+    assert mesh.agents[0].workdir == "/home/user/proj"
+    assert mesh.agents[0].channels == ["#general", "#dev"]
+    assert mesh.agents[1].nick == "codex"
+    assert mesh.agents[1].type == "codex"
+
+
+def test_from_daemon_config_unprefixed_nick():
+    """from_daemon_config handles nicks without server prefix."""
+    daemon = DaemonConfig(
+        server=ServerConnConfig(name="spark"),
+        agents=[AgentConfig(nick="standalone", agent="claude", directory=".")],
+    )
+    mesh = from_daemon_config(daemon)
+    assert mesh.agents[0].nick == "standalone"
+
+
+def test_from_daemon_config_empty_agents():
+    """from_daemon_config works with no agents."""
+    daemon = DaemonConfig(
+        server=ServerConnConfig(name="test", port=7000),
+    )
+    mesh = from_daemon_config(daemon)
+    assert mesh.server.name == "test"
+    assert mesh.server.port == 7000
+    assert mesh.agents == []

@@ -96,7 +96,9 @@ culture setup --uninstall             # remove all services and stop processes
 
 ### What setup does
 
-1. Loads `mesh.yaml`. Exits with an error if the file is missing.
+1. Loads `mesh.yaml`. If the file is missing but `~/.culture/agents.yaml`
+   exists, auto-generates `mesh.yaml` from it (listen host defaults to
+   `0.0.0.0`, no federation links).
 2. For each peer link, checks the OS credential store. If no credential is
    found, prompts interactively and stores the password in the OS keyring
    (never written to files).
@@ -147,11 +149,13 @@ culture update --config /path/mesh.yaml
 
 ### What update does
 
-1. Upgrades `culture` via `uv tool upgrade` (falls back to `pip install --upgrade`).
-2. Re-execs itself with `--skip-upgrade` so the restart runs with the new binary.
-3. Stops all agents, then stops the server.
-4. Regenerates auto-start service entries (picks up any config changes).
-5. Starts the server, waits for it to accept connections, then starts all agents.
+1. Loads `mesh.yaml`. If the file is missing but `~/.culture/agents.yaml`
+   exists, auto-generates `mesh.yaml` from it (same fallback as `setup`).
+2. Upgrades `culture` via `uv tool upgrade` (falls back to `pip install --upgrade`).
+3. Re-execs itself with `--skip-upgrade` so the restart runs with the new binary.
+4. Stops all agents, then stops the server.
+5. Regenerates auto-start service entries (picks up any config changes).
+6. Starts the server, waits for it to accept connections, then starts all agents.
 
 The `--dry-run` output shows every step without touching running services:
 

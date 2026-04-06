@@ -1899,6 +1899,22 @@ def _resolve_links_from_mesh(mesh_config_path: str) -> list:
 # -----------------------------------------------------------------------
 
 
+def _generate_mesh_from_agents(mesh_config_path: str):
+    """Fall back to generating mesh.yaml from agents.yaml when mesh.yaml is missing."""
+    from culture.mesh_config import from_daemon_config, save_mesh_config
+
+    if not os.path.isfile(DEFAULT_CONFIG):
+        print(f"Mesh config not found: {mesh_config_path}", file=sys.stderr)
+        print(f"Agent config not found either: {DEFAULT_CONFIG}", file=sys.stderr)
+        return None
+
+    daemon_config = load_config(DEFAULT_CONFIG)
+    mesh = from_daemon_config(daemon_config)
+    save_mesh_config(mesh, mesh_config_path)
+    print(f"No mesh.yaml found — generated from {DEFAULT_CONFIG}")
+    return mesh
+
+
 def _build_server_start_cmd(mesh, culture_bin: str, mesh_config_path: str) -> list[str]:
     """Build the server start command with --foreground and --mesh-config.
 
@@ -2014,9 +2030,9 @@ def _cmd_setup(args: argparse.Namespace) -> None:
     try:
         mesh = load_mesh_config(args.config)
     except FileNotFoundError:
-        print(f"Mesh config not found: {args.config}", file=sys.stderr)
-        print("Create it manually or ask your AI agent to generate it.", file=sys.stderr)
-        sys.exit(1)
+        mesh = _generate_mesh_from_agents(args.config)
+        if mesh is None:
+            sys.exit(1)
 
     server_name = mesh.server.name
 
@@ -2239,8 +2255,9 @@ def _cmd_update(args: argparse.Namespace) -> None:
     try:
         mesh = load_mesh_config(args.config)
     except FileNotFoundError:
-        print(f"Mesh config not found: {args.config}", file=sys.stderr)
-        sys.exit(1)
+        mesh = _generate_mesh_from_agents(args.config)
+        if mesh is None:
+            sys.exit(1)
 
     server_name = mesh.server.name
 
