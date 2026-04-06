@@ -1903,13 +1903,12 @@ def _generate_mesh_from_agents(mesh_config_path: str):
     """Fall back to generating mesh.yaml from agents.yaml when mesh.yaml is missing."""
     from culture.mesh_config import from_daemon_config, save_mesh_config
 
-    try:
-        daemon_config = load_config_or_default(DEFAULT_CONFIG)
-    except FileNotFoundError:
+    if not os.path.isfile(DEFAULT_CONFIG):
         print(f"Mesh config not found: {mesh_config_path}", file=sys.stderr)
         print(f"Agent config not found either: {DEFAULT_CONFIG}", file=sys.stderr)
         return None
 
+    daemon_config = load_config(DEFAULT_CONFIG)
     mesh = from_daemon_config(daemon_config)
     save_mesh_config(mesh, mesh_config_path)
     print(f"No mesh.yaml found — generated from {DEFAULT_CONFIG}")

@@ -6,8 +6,12 @@ import os
 import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
+
+if TYPE_CHECKING:
+    from culture.clients.claude.config import DaemonConfig
 
 
 @dataclass
@@ -73,15 +77,18 @@ def load_mesh_config(path: str | Path = DEFAULT_MESH_PATH) -> MeshConfig:
     return MeshConfig(server=server, agents=agents)
 
 
-def from_daemon_config(daemon_config) -> MeshConfig:
+def from_daemon_config(daemon_config: DaemonConfig) -> MeshConfig:
     """Derive a MeshConfig from an existing DaemonConfig (agents.yaml).
 
     Useful when mesh.yaml doesn't exist but the user has a running mesh
     started manually via ``culture server start`` + ``culture start``.
+
+    Note: DaemonConfig.server.host is the *connection* target (often localhost),
+    while MeshServerConfig.host is the *listen* address. We use the default
+    0.0.0.0 for the listen address to preserve external accessibility.
     """
     server = MeshServerConfig(
         name=daemon_config.server.name,
-        host=daemon_config.server.host,
         port=daemon_config.server.port,
     )
     server_prefix = f"{daemon_config.server.name}-"
