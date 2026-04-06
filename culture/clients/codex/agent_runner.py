@@ -23,12 +23,14 @@ class CodexAgentRunner:
         system_prompt: str = "",
         on_exit: Callable[[int], Awaitable[None]] | None = None,
         on_message: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
+        on_turn_error: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         self.model = model
         self.directory = directory
         self.system_prompt = system_prompt
         self.on_exit = on_exit
         self.on_message = on_message
+        self.on_turn_error = on_turn_error
 
         self._isolated_home: str | None = None
         self._process: asyncio.subprocess.Process | None = None
@@ -318,6 +320,8 @@ class CodexAgentRunner:
 
                 except Exception:
                     logger.exception("Codex turn error")
+                    if self.on_turn_error:
+                        await self.on_turn_error()
 
         except asyncio.CancelledError:
             raise

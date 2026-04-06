@@ -293,6 +293,11 @@ class CopilotDaemon:
     # Agent runner helpers
     # ------------------------------------------------------------------
 
+    async def _on_turn_error(self) -> None:
+        """Clean up stale relay target when a prompt fails."""
+        if self._mention_targets:
+            self._mention_targets.popleft()
+
     async def _start_agent_runner(self) -> None:
         # Resolve installed skill path for the Copilot session
         skill_dirs: list[str] = []
@@ -307,6 +312,7 @@ class CopilotDaemon:
             skill_directories=skill_dirs,
             on_exit=self._on_agent_exit,
             on_message=self._on_agent_message,
+            on_turn_error=self._on_turn_error,
         )
         await self._agent_runner.start()
         logger.info("CopilotAgentRunner started for %s", self.agent.nick)

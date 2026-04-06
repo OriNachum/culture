@@ -293,6 +293,11 @@ class CodexDaemon:
     # Agent runner helpers
     # ------------------------------------------------------------------
 
+    async def _on_turn_error(self) -> None:
+        """Clean up stale relay target when a prompt fails."""
+        if self._mention_targets:
+            self._mention_targets.popleft()
+
     async def _start_agent_runner(self) -> None:
         self._agent_runner = CodexAgentRunner(
             model=self.agent.model,
@@ -300,6 +305,7 @@ class CodexDaemon:
             system_prompt=self._build_system_prompt(),
             on_exit=self._on_agent_exit,
             on_message=self._on_agent_message,
+            on_turn_error=self._on_turn_error,
         )
         await self._agent_runner.start()
         logger.info("CodexAgentRunner started for %s", self.agent.nick)
