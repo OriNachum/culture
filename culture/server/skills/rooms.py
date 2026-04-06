@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Callable
 
+from culture.aio import maybe_await
 from culture.protocol import replies
 from culture.protocol.message import Message
 from culture.server.rooms_util import generate_room_id, parse_room_meta
@@ -28,7 +29,7 @@ class RoomsSkill(Skill):
             "ROOMARCHIVE": self._handle_roomarchive,
         }.get(msg.command)
         if handler:
-            await handler(client, msg)
+            await maybe_await(handler(client, msg))
 
     async def _handle_roomcreate(self, client: Client, msg: Message) -> None:
         if len(msg.params) < 2:

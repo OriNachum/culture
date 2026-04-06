@@ -10,6 +10,8 @@ import shutil
 import tempfile
 from typing import Any, Awaitable, Callable
 
+from culture.aio import maybe_await
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +25,7 @@ class CodexAgentRunner:
         system_prompt: str = "",
         on_exit: Callable[[int], Awaitable[None]] | None = None,
         on_message: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
-        on_turn_error: Callable[[], Awaitable[None]] | None = None,
+        on_turn_error: Callable[[], Awaitable[None] | None] | None = None,
     ) -> None:
         self.model = model
         self.directory = directory
@@ -321,7 +323,7 @@ class CodexAgentRunner:
                 except Exception:
                     logger.exception("Codex turn error")
                     if self.on_turn_error:
-                        await self.on_turn_error()
+                        await maybe_await(self.on_turn_error())
 
         except asyncio.CancelledError:
             raise

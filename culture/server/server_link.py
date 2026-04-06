@@ -5,6 +5,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+from culture.aio import maybe_await
 from culture.protocol.message import Message
 from culture.server.remote_client import RemoteClient
 from culture.server.skill import Event, EventType
@@ -111,7 +112,7 @@ class ServerLink:
     async def _dispatch(self, msg: Message) -> None:
         handler = getattr(self, f"_handle_{msg.command.lower()}", None)
         if handler:
-            await handler(msg)
+            await maybe_await(handler(msg))
 
     # --- Handshake handlers ---
 
@@ -245,7 +246,7 @@ class ServerLink:
                 )
                 await self.send_raw(f"SROOMMETA {channel.name} :{meta}")
 
-    async def _handle_snick(self, msg: Message) -> None:
+    def _handle_snick(self, msg: Message) -> None:
         if len(msg.params) < 4:
             return
         nick, user, host = msg.params[0], msg.params[1], msg.params[2]
@@ -305,7 +306,7 @@ class ServerLink:
                         if not isinstance(member, RemoteClient):
                             await member.send(join_msg)
 
-    async def _handle_stopic(self, msg: Message) -> None:
+    def _handle_stopic(self, msg: Message) -> None:
         if len(msg.params) < 3:
             return
         channel_name = msg.params[0]
@@ -489,12 +490,12 @@ class ServerLink:
         rc.channels.clear()
         del self.server.remote_clients[nick]
 
-    async def _handle_squit(self, msg: Message) -> None:
+    def _handle_squit(self, msg: Message) -> None:
         """Handle peer announcing it's delinking."""
         self._squit_received = True
         raise ConnectionError("Peer sent SQUIT")
 
-    async def _handle_sroommeta(self, msg: Message) -> None:
+    def _handle_sroommeta(self, msg: Message) -> None:
         """Receive room metadata from peer and apply to local channel."""
         import json
 
@@ -539,7 +540,7 @@ class ServerLink:
         if meta.get("created_at") is not None:
             channel.created_at = meta["created_at"]
 
-    async def _handle_stags(self, msg: Message) -> None:
+    def _handle_stags(self, msg: Message) -> None:
         """Receive agent tags from peer and apply to remote client."""
         if len(msg.params) < 2:
             return
@@ -698,7 +699,7 @@ class ServerLink:
 
         await self.send_raw(f":{self.server.config.name} BACKFILLEND {self.server._seq}")
 
-    async def _handle_backfillend(self, msg: Message) -> None:
+    def _handle_backfillend(self, msg: Message) -> None:
         """Peer finished backfilling."""
         if msg.params:
             try:
@@ -727,7 +728,7 @@ class ServerLink:
         origin = self.server.config.name
         handler = self._RELAY_DISPATCH.get(event.type)
         if handler:
-            await handler(self, event, origin)
+            await maybe_await(handler(self, event, origin))
 
     async def _relay_message(self, event: Event, origin: str) -> None:
         target = event.channel or event.data.get("target", "")

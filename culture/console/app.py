@@ -12,6 +12,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Footer, Header
 
+from culture.aio import maybe_await
 from culture.console.client import ConsoleIRCClient
 from culture.console.commands import CommandType, parse_command
 from culture.console.widgets.chat import ChatPanel
@@ -158,7 +159,7 @@ class ConsoleApp(App):
         """Dispatch a ParsedCommand to the appropriate handler."""
         handler = self._command_handlers.get(cmd.type)
         if handler:
-            await handler(cmd)
+            await maybe_await(handler(cmd))
         elif cmd.type in (CommandType.START, CommandType.STOP, CommandType.RESTART):
             await self._handle_agent_management(cmd)
         elif cmd.type == CommandType.UNKNOWN:
@@ -274,8 +275,8 @@ class ConsoleApp(App):
         await self._client.send_privmsg(target, text)
         chat.add_message(time.time(), "", self._client.nick, f"→ {target}: {text}")
 
-    async def _handle_overview(self, cmd) -> None:  # noqa: ANN001
-        await self.action_show_overview()
+    def _handle_overview(self, cmd) -> None:  # noqa: ANN001
+        self.action_show_overview()
 
     async def _handle_status(self, cmd) -> None:  # noqa: ANN001
         agent = cmd.args[0] if cmd.args else None
@@ -315,7 +316,7 @@ class ConsoleApp(App):
             return
         await self._client.send_raw(f"INVITE {cmd.args[0]} {cmd.args[1]}")
 
-    async def _handle_agent_management(self, cmd) -> None:  # noqa: ANN001
+    def _handle_agent_management(self, cmd) -> None:  # noqa: ANN001
         chat: ChatPanel = self.query_one(ChatPanel)
         verb = cmd.type.name.lower()
         chat.add_message(
@@ -326,7 +327,7 @@ class ConsoleApp(App):
             f"[bold]culture {verb} <agent>[/][/]",
         )
 
-    async def _handle_server(self, cmd) -> None:  # noqa: ANN001
+    def _handle_server(self, cmd) -> None:  # noqa: ANN001
         chat: ChatPanel = self.query_one(ChatPanel)
         target = cmd.args[0] if cmd.args else ""
         chat.add_message(
@@ -344,7 +345,7 @@ class ConsoleApp(App):
     # View actions
     # ------------------------------------------------------------------
 
-    async def action_show_overview(self) -> None:
+    def action_show_overview(self) -> None:
         """Switch to the overview view showing mesh stats."""
         self._current_view = "overview"
         chat: ChatPanel = self.query_one(ChatPanel)

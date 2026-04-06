@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.2.1] - 2026-04-07
+
+
+### Changed
+
+- Update dispatch patterns to use declarative maybe_await() utility for handling both sync and async handlers
+- Remove unnecessary async keyword from ~40 handler functions that never use await
+
+
+### Fixed
+
+- SonarCloud S7503: async functions that never await (issue #83)
+
 ## [4.2.0] - 2026-04-07
 
 

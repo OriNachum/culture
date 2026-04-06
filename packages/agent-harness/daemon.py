@@ -20,6 +20,7 @@ import time
 from typing import Any
 
 # These imports point to YOUR backend's copies of these files:
+from culture.aio import maybe_await
 from culture.clients.BACKEND.config import AgentConfig, DaemonConfig
 from culture.clients.BACKEND.ipc import make_response
 from culture.clients.BACKEND.irc_transport import IRCTransport
@@ -258,7 +259,7 @@ class AgentDaemon:
             except Exception:
                 logger.exception("Poll loop error")
 
-    async def _on_turn_error(self) -> None:
+    def _on_turn_error(self) -> None:
         """Clean up stale relay target when a prompt fails.
 
         Wire this as the ``on_turn_error`` callback on your agent runner so
@@ -307,7 +308,7 @@ class AgentDaemon:
             handler = self._ipc_dispatch.get(msg_type)
             if handler is None:
                 return make_response(req_id, ok=False, error=f"Unknown message type: {msg_type!r}")
-            return await handler(req_id, msg)
+            return await maybe_await(handler(req_id, msg))
         except Exception as exc:
             logger.exception("IPC handler error for type %r", msg_type)
             return make_response(req_id, ok=False, error=str(exc))
@@ -323,7 +324,7 @@ class AgentDaemon:
             await self._transport.send_privmsg(channel, message)
         return make_response(req_id, ok=True)
 
-    async def _ipc_irc_read(self, req_id: str, msg: dict) -> dict:
+    def _ipc_irc_read(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
         limit = msg.get("limit", 50)
         if self._buffer:
@@ -372,21 +373,21 @@ class AgentDaemon:
             await self._transport.send_who(target)
         return make_response(req_id, ok=True)
 
-    async def _ipc_irc_channels(self, req_id: str, msg: dict) -> dict:
+    def _ipc_irc_channels(self, req_id: str, msg: dict) -> dict:
         channels = self._transport.channels if self._transport else []
         return make_response(req_id, ok=True, data={"channels": channels})
 
-    async def _ipc_compact(self, req_id: str, msg: dict) -> dict:
+    def _ipc_compact(self, req_id: str, msg: dict) -> dict:
         # Send /compact to agent runner — ADAPT for your backend
         logger.info("IPC compact requested")
         return make_response(req_id, ok=True)
 
-    async def _ipc_clear(self, req_id: str, msg: dict) -> dict:
+    def _ipc_clear(self, req_id: str, msg: dict) -> dict:
         # Send /clear to agent runner — ADAPT for your backend
         logger.info("IPC clear requested")
         return make_response(req_id, ok=True)
 
-    async def _ipc_shutdown(self, req_id: str, msg: dict) -> dict:
+    def _ipc_shutdown(self, req_id: str, msg: dict) -> dict:
         if self._stop_event:
             self._stop_event.set()
         else:
@@ -399,12 +400,12 @@ class AgentDaemon:
     # Status / Pause / Resume IPC handlers
     # ------------------------------------------------------------------
 
-    async def _ipc_pause(self, req_id: str, msg: dict) -> dict:
+    def _ipc_pause(self, req_id: str, msg: dict) -> dict:
         self._paused = True
         logger.info("Agent %s paused", self.agent.nick)
         return make_response(req_id, ok=True)
 
-    async def _ipc_resume(self, req_id: str, msg: dict) -> dict:
+    def _ipc_resume(self, req_id: str, msg: dict) -> dict:
         self._paused = False
         logger.info("Agent %s resumed", self.agent.nick)
         return make_response(req_id, ok=True)
@@ -451,7 +452,7 @@ class AgentDaemon:
             await self._transport.send_thread_close(channel, thread_name, summary)
         return make_response(req_id, ok=True)
 
-    async def _ipc_irc_thread_read(self, req_id: str, msg: dict) -> dict:
+    def _ipc_irc_thread_read(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
         thread_name = msg.get("thread", "")
         limit = int(msg.get("limit", 50))

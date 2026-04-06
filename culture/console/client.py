@@ -13,6 +13,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from culture.aio import maybe_await
 from culture.protocol.message import Message
 
 logger = logging.getLogger(__name__)
@@ -282,9 +283,7 @@ class ConsoleIRCClient:
         """Route a parsed IRC message to the appropriate handler."""
         handler = self._msg_handlers.get(msg.command)
         if handler:
-            result = handler(msg)
-            if asyncio.iscoroutine(result):
-                await result
+            await maybe_await(handler(msg))
 
     # ------------------------------------------------------------------
     # IRC message handlers

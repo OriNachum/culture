@@ -9,6 +9,8 @@ import shutil
 import tempfile
 from typing import Any, Awaitable, Callable
 
+from culture.aio import maybe_await
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +25,7 @@ class CopilotAgentRunner:
         skill_directories: list[str] | None = None,
         on_exit: Callable[[int], Awaitable[None]] | None = None,
         on_message: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
-        on_turn_error: Callable[[], Awaitable[None]] | None = None,
+        on_turn_error: Callable[[], Awaitable[None] | None] | None = None,
     ) -> None:
         self.model = model
         self.directory = directory
@@ -161,7 +163,7 @@ class CopilotAgentRunner:
                 except Exception:
                     logger.exception("Copilot session turn error")
                     if self.on_turn_error:
-                        await self.on_turn_error()
+                        await maybe_await(self.on_turn_error())
                     if not self._stopping:
                         self._running = False
                         if self.on_exit:

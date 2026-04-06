@@ -16,6 +16,7 @@ import os
 import time
 from collections import deque
 
+from culture.aio import maybe_await
 from culture.clients.acp.agent_runner import ACPAgentRunner
 from culture.clients.acp.config import AgentConfig, DaemonConfig
 from culture.clients.acp.ipc import make_response
@@ -318,7 +319,7 @@ class ACPDaemon:
     # Agent runner helpers
     # ------------------------------------------------------------------
 
-    async def _on_turn_error(self) -> None:
+    def _on_turn_error(self) -> None:
         """Clean up stale relay target when a prompt fails."""
         if self._mention_targets:
             self._mention_targets.popleft()
@@ -436,7 +437,7 @@ class ACPDaemon:
                             if line:
                                 await self._transport.send_privmsg(relay_target, line)
 
-    async def _capture_agent_status(self, msg: dict) -> None:
+    def _capture_agent_status(self, msg: dict) -> None:
         """Capture the last assistant text for status reporting and fulfill any pending query."""
         if msg.get("type") == "assistant":
             for block in msg.get("content", []):
@@ -459,7 +460,7 @@ class ACPDaemon:
         if self._supervisor:
             await self._supervisor.observe(msg)
 
-        await self._capture_agent_status(msg)
+        self._capture_agent_status(msg)
 
     def _build_system_prompt(self) -> str:
         if self.agent.system_prompt:
@@ -589,7 +590,7 @@ class ACPDaemon:
             handler = self._ipc_dispatch.get(msg_type)
             if handler is None:
                 return make_response(req_id, ok=False, error=f"Unknown message type: {msg_type!r}")
-            return await handler(req_id, msg)
+            return await maybe_await(handler(req_id, msg))
         except Exception as exc:
             logger.exception("IPC handler error for type %r", msg_type)
             return make_response(req_id, ok=False, error=str(exc))
@@ -598,12 +599,12 @@ class ACPDaemon:
     # IPC sub-handlers
     # ------------------------------------------------------------------
 
-    async def _ipc_pause(self, req_id: str, msg: dict) -> dict:
+    def _ipc_pause(self, req_id: str, msg: dict) -> dict:
         self._paused = True
         logger.info("Agent %s paused", self.agent.nick)
         return make_response(req_id, ok=True)
 
-    async def _ipc_resume(self, req_id: str, msg: dict) -> dict:
+    def _ipc_resume(self, req_id: str, msg: dict) -> dict:
         self._paused = False
         logger.info("Agent %s resumed", self.agent.nick)
         # NOTE: Catch-up on missed messages is not yet implemented.
@@ -689,7 +690,7 @@ class ACPDaemon:
         await self._transport.send_privmsg(channel, text)
         return make_response(req_id, ok=True)
 
-    async def _ipc_irc_read(self, req_id: str, msg: dict) -> dict:
+    def _ipc_irc_read(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
         limit = int(msg.get("limit", 50))
         if not channel:
@@ -764,7 +765,7 @@ class ACPDaemon:
         await self._transport.send_thread_close(channel, thread_name, summary)
         return make_response(req_id, ok=True)
 
-    async def _ipc_irc_thread_read(self, req_id: str, msg: dict) -> dict:
+    def _ipc_irc_thread_read(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
         thread_name = msg.get("thread", "")
         limit = int(msg.get("limit", 50))
@@ -783,7 +784,7 @@ class ACPDaemon:
             },
         )
 
-    async def _ipc_irc_channels(self, req_id: str, msg: dict) -> dict:
+    def _ipc_irc_channels(self, req_id: str, msg: dict) -> dict:
         assert self._transport is not None
         return make_response(req_id, ok=True, data={"channels": self._transport.channels})
 
@@ -828,7 +829,7 @@ class ACPDaemon:
         await self._agent_runner.send_prompt("/clear")
         return make_response(req_id, ok=True)
 
-    async def _ipc_shutdown(self, req_id: str, msg: dict) -> dict:
+    def _ipc_shutdown(self, req_id: str, msg: dict) -> dict:
         task = asyncio.create_task(self._graceful_shutdown())
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)

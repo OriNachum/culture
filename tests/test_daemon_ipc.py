@@ -34,7 +34,7 @@ async def test_ipc_status_initial(daemon):
 @pytest.mark.asyncio
 async def test_ipc_pause(daemon):
     """Pause should set paused flag."""
-    resp = await daemon._ipc_pause("req-2", {})
+    resp = daemon._ipc_pause("req-2", {})
     assert resp["ok"] is True
     assert daemon._paused is True
 
@@ -48,7 +48,7 @@ async def test_ipc_pause(daemon):
 async def test_ipc_resume(daemon):
     """Resume should clear paused flag."""
     daemon._paused = True
-    resp = await daemon._ipc_resume("req-4", {})
+    resp = daemon._ipc_resume("req-4", {})
     assert resp["ok"] is True
     assert daemon._paused is False
 

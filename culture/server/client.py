@@ -6,6 +6,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+from culture.aio import maybe_await
 from culture.protocol import replies
 from culture.protocol.message import Message
 from culture.server.channel import Channel
@@ -88,7 +89,7 @@ class Client:
     async def _dispatch(self, msg: Message) -> None:
         handler = getattr(self, f"_handle_{msg.command.lower()}", None)
         if handler:
-            await handler(msg)
+            await maybe_await(handler(msg))
         else:
             skill = self.server.get_skill_for_command(msg.command)
             if skill and self._registered:
@@ -111,7 +112,7 @@ class Client:
             )
         )
 
-    async def _handle_pong(self, msg: Message) -> None:
+    def _handle_pong(self, msg: Message) -> None:
         pass  # Client responding to our ping
 
     async def _handle_nick(self, msg: Message) -> None:

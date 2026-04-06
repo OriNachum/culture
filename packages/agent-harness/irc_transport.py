@@ -6,6 +6,7 @@ import logging
 import re
 from typing import Callable
 
+from culture.aio import maybe_await
 from culture.clients.BACKEND.message_buffer import MessageBuffer
 from culture.protocol.message import Message
 
@@ -165,7 +166,7 @@ class IRCTransport:
     async def _handle(self, msg: Message) -> None:
         handler = self._cmd_handlers.get(msg.command)
         if handler:
-            await handler(msg)
+            await maybe_await(handler(msg))
 
     async def _on_ping(self, msg: Message) -> None:
         token = msg.params[0] if msg.params else ""
@@ -181,7 +182,7 @@ class IRCTransport:
         if self.icon:
             await self._send_raw(f"ICON {self.icon}")
 
-    async def _on_privmsg(self, msg: Message) -> None:
+    def _on_privmsg(self, msg: Message) -> None:
         if len(msg.params) < 2:
             return
         target = msg.params[0]
@@ -200,7 +201,7 @@ class IRCTransport:
             ):
                 self.on_mention(target, sender, text)
 
-    async def _on_notice(self, msg: Message) -> None:
+    def _on_notice(self, msg: Message) -> None:
         if len(msg.params) < 2:
             return
         target = msg.params[0]
@@ -209,7 +210,7 @@ class IRCTransport:
         if target.startswith("#"):
             self.buffer.add(target, sender, text)
 
-    async def _on_roominvite(self, msg: Message) -> None:
+    def _on_roominvite(self, msg: Message) -> None:
         if len(msg.params) < 3:
             return
         channel = msg.params[0]
