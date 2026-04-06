@@ -1,6 +1,7 @@
 import asyncio
 import os
 import tempfile
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -151,5 +152,50 @@ async def test_acp_relay_target_fifo(server, make_client):
     assert len(channel_msgs) >= 1, f"Expected 'channel response' in #general, got: {lines}"
     # DM goes to testserv-alice directly, so alice sees it as a PRIVMSG to their nick
     assert any("dm response" in l for l in lines), f"Expected 'dm response', got: {lines}"
+
+    await daemon.stop()
+
+
+def _inject_fake_acp_runner(daemon):
+    """Inject a fake agent runner that records prompts."""
+    runner = MagicMock()
+    runner.is_running.return_value = True
+    runner.send_prompt = AsyncMock()
+    runner.stop = AsyncMock()
+    daemon._agent_runner = runner
+    return runner
+
+
+@pytest.mark.asyncio
+async def test_acp_poll_loop_uses_fire_and_forget(server, make_client):
+    """ACP poll loop should use create_task (fire-and-forget), not blocking await."""
+    config = DaemonConfig(
+        server=ServerConnConfig(host="127.0.0.1", port=server.config.port),
+        poll_interval=1,
+    )
+    agent = AgentConfig(nick="testserv-opencode", directory="/tmp", channels=["#general"])
+    sock_dir = tempfile.mkdtemp()
+    daemon = ACPDaemon(config, agent, socket_dir=sock_dir, skip_agent=True)
+    await daemon.start()
+    runner = _inject_fake_acp_runner(daemon)
+    await asyncio.sleep(0.5)
+
+    # Human sends a message (no @mention)
+    human = await make_client(nick="testserv-ori", user="ori")
+    await human.send("JOIN #general")
+    await human.recv_all(timeout=0.3)
+    await human.send("PRIVMSG #general :hello from poll test")
+
+    # Wait for poll to fire
+    await asyncio.sleep(1.5)
+
+    # Poll loop should have sent the prompt
+    assert runner.send_prompt.call_count >= 1
+    prompt = runner.send_prompt.call_args[0][0]
+    assert "hello from poll test" in prompt
+    assert "[IRC Channel Poll: #general]" in prompt
+
+    # The poll should also have enqueued a relay target
+    assert len(daemon._mention_targets) >= 1
 
     await daemon.stop()

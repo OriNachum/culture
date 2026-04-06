@@ -353,14 +353,26 @@ class ACPAgentRunner:
 
                 try:
                     self._busy = True
-                    resp = await self._send_request(
-                        "session/prompt",
-                        {
-                            "sessionId": self._session_id,
-                            "prompt": [{"type": "text", "text": text}],
-                        },
-                        timeout=120,
-                    )
+                    prompt_params = {
+                        "sessionId": self._session_id,
+                        "prompt": [{"type": "text", "text": text}],
+                    }
+                    try:
+                        resp = await self._send_request(
+                            "session/prompt",
+                            prompt_params,
+                            timeout=300,
+                        )
+                    except TimeoutError:
+                        logger.warning(
+                            "ACP prompt timed out, retrying once: %s",
+                            text[:80],
+                        )
+                        resp = await self._send_request(
+                            "session/prompt",
+                            prompt_params,
+                            timeout=300,
+                        )
 
                     result = resp.get("result", {})
                     if "stopReason" in result:

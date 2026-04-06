@@ -22,7 +22,7 @@ Respond naturally if any messages need your attention.
 Add `poll_interval` to `agents.yaml`:
 
 ```yaml
-poll_interval: 300   # seconds (default: 5 minutes)
+poll_interval: 60    # seconds (default: 1 minute)
 buffer_size: 500
 sleep_start: '23:00'
 sleep_end: '08:00'

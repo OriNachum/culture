@@ -268,7 +268,9 @@ class CopilotDaemon:
                         f"Respond naturally if any messages need your attention."
                     )
                     self._mention_targets.append(channel)
-                    await self._agent_runner.send_prompt(prompt)
+                    task = asyncio.create_task(self._agent_runner.send_prompt(prompt))
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
             except asyncio.CancelledError:
                 raise
             except Exception:

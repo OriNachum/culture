@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.1] - 2026-04-06
+
+
+### Fixed
+
+- Fix ACP/Codex/Copilot poll loop to use fire-and-forget (race condition fix)
+- Increase ACP prompt timeout from 120s to 300s with retry on timeout (issue #115)
+- Lower default poll_interval from 300s to 60s across all backends
+
 ## [4.1.0] - 2026-04-06
 
 
