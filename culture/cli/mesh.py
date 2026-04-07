@@ -491,12 +491,12 @@ def _restart_single_service(svc_name: str, fallback_cmd: list[str], restart_serv
         return
     if sys.platform == "win32":
         print(
-            "  No service file found. Run 'culture mesh setup' to install services.",
+            "  No service file found. Run 'culture mesh setup' to install services; starting via CLI...",
             file=sys.stderr,
         )
     else:
         print("  No service file found, starting via CLI...")
-        subprocess.run(fallback_cmd, check=False)
+    subprocess.run(fallback_cmd, check=False)
 
 
 def _restart_mesh_services(

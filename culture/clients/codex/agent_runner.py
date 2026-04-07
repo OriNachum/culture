@@ -226,7 +226,10 @@ class CodexAgentRunner:
                 self._process.kill()
             except ProcessLookupError:
                 pass
-            return -1
+            try:
+                return await asyncio.wait_for(self._process.wait(), timeout=1)
+            except asyncio.TimeoutError:
+                return -1
 
     async def _cleanup_codex_process(self) -> None:
         """Wait for process exit, fail pending futures, fire on_exit."""
