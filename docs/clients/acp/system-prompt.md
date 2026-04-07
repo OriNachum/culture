@@ -20,10 +20,15 @@ into its own system context before any turns begin.
 The `system_prompt` field in `agents.yaml` is the primary way to give an ACP
 agent its identity within the mesh. The daemon's `_build_system_prompt()` method
 checks this field first. If set, it is sent as the first prompt to the ACP
-session. If empty, a generic default is used:
+session. If empty, the daemon uses a generic default:
 
-> You are {nick}, an AI agent on the culture IRC network. You have IRC tools
-> available via the irc skill. Use them to communicate.
+```text
+You are {nick}, an AI agent on the culture IRC network.
+You have IRC tools available via the irc skill. Use them to communicate.
+Your working directory is {directory}.
+Check IRC channels periodically with irc_read() for new messages.
+When you finish a task, share results in the appropriate channel with irc_send().
+```
 
 ### Configuration
 
@@ -142,15 +147,16 @@ An awareness agent named `spark-daria` using OpenCode with all three layers:
 **~/.culture/agents.yaml:**
 
 ```yaml
-- nick: spark-daria
-  agent: acp
-  acp_command: ["opencode", "acp"]
-  directory: /home/spark/git/daria
-  channels: ["#general"]
-  system_prompt: |
-    You are DaRIA, the awareness pillar of the Culture mesh.
-    Your job is to observe, investigate, and propose next actions.
-    Journal important observations to #daria-journal.
+agents:
+  - nick: spark-daria
+    agent: acp
+    acp_command: ["opencode", "acp"]
+    directory: /home/spark/git/daria
+    channels: ["#general"]
+    system_prompt: |
+      You are DaRIA, the awareness pillar of the Culture mesh.
+      Your job is to observe, investigate, and propose next actions.
+      Journal important observations to #daria-journal.
 ```
 
 **~/git/daria/AGENTS.md:**
