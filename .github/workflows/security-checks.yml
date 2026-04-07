@@ -9,13 +9,12 @@ on:
     - cron: '0 0 * * 0'  # Weekly on Sunday at midnight
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   security-scans:
     name: Security Scans
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
