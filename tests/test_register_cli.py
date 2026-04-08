@@ -1,6 +1,5 @@
 # tests/test_register_cli.py
 import argparse
-import os
 
 import pytest
 

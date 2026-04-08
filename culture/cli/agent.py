@@ -186,12 +186,12 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     register_parser.add_argument(
         "--suffix", default=None, help="Agent suffix (required for multi-agent culture.yaml)"
     )
-    register_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
+    register_parser.add_argument("--config", default=DEFAULT_SERVER_CONFIG, help=_CONFIG_HELP)
 
     # -- unregister -----------------------------------------------------------
     unregister_parser = agent_sub.add_parser("unregister", help="Unregister agent")
     unregister_parser.add_argument("target", help="Agent suffix or full nick")
-    unregister_parser.add_argument("--config", default=DEFAULT_CONFIG, help=_CONFIG_HELP)
+    unregister_parser.add_argument("--config", default=DEFAULT_SERVER_CONFIG, help=_CONFIG_HELP)
 
     # -- migrate --------------------------------------------------------------
     migrate_parser = agent_sub.add_parser(
@@ -302,7 +302,7 @@ def _create_default_config(full_nick: str, backend: str) -> AgentConfig:
     """Build a default (claude) AgentConfig."""
     return AgentConfig(
         nick=full_nick,
-        agent=backend,
+        backend=backend,
         directory=os.getcwd(),
         channels=[DEFAULT_CHANNEL],
     )
@@ -1116,3 +1116,5 @@ def _cmd_migrate(args: argparse.Namespace) -> None:
     legacy_path.rename(backup)
     print(f"  Backed up {legacy_path} -> {backup}")
     print(f"\nMigration complete: {len(manifest)} agent(s) across {len(by_dir)} directory(ies)")
+    print(f"\nAgent commands now use {output_path} by default.")
+    print(f"Verify with: culture agent status")

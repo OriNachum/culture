@@ -117,6 +117,7 @@ DaemonConfig = ServerConfig
 
 
 CULTURE_YAML = "culture.yaml"
+_YAML_TMP_SUFFIX = ".yaml.tmp"
 
 # Fields that are typed on AgentConfig (not extras)
 _KNOWN_AGENT_FIELDS = {f.name for f in AgentConfig.__dataclass_fields__.values()} - {
@@ -169,6 +170,10 @@ def load_culture_yaml(directory: str, suffix: str | None = None) -> list[AgentCo
         # Single-agent format: top-level fields
         agents = [_parse_agent_entry(raw, directory)]
 
+    for agent in agents:
+        if not agent.suffix:
+            raise ValueError(f"Agent entry in {path} is missing a 'suffix' field")
+
     if suffix is not None:
         filtered = [a for a in agents if a.suffix == suffix]
         if not filtered:
@@ -198,8 +203,8 @@ def load_server_config(path: str | Path) -> ServerConfig:
     supervisor = SupervisorConfig(**raw.get("supervisor", {}))
     webhooks = WebhookConfig(**raw.get("webhooks", {}))
 
-    manifest = raw.get("agents", {})
-    if isinstance(manifest, list):
+    manifest = raw.get("agents") or {}
+    if not isinstance(manifest, dict):
         manifest = {}
 
     return ServerConfig(
@@ -303,12 +308,25 @@ def load_config(path: str | Path) -> ServerConfig:
     return config
 
 
-def load_config_or_default(path: str | Path) -> ServerConfig:
-    """Load config from path, returning default ServerConfig if missing."""
+def load_config_or_default(path: str | Path, fallback: str | Path | None = None) -> ServerConfig:
+    """Load config from path, returning default ServerConfig if missing.
+
+    If *path* does not exist and *fallback* is given, try the fallback path.
+    If neither is given, check the legacy ~/.culture/agents.yaml location.
+    """
     path = Path(path)
-    if not path.exists():
-        return ServerConfig()
-    return load_config(path)
+    if path.exists():
+        return load_config(path)
+
+    # Try legacy fallback
+    if fallback is None:
+        fallback = Path(os.path.expanduser("~/.culture/agents.yaml"))
+    else:
+        fallback = Path(fallback)
+    if fallback.exists():
+        return load_config(fallback)
+
+    return ServerConfig()
 
 
 def _agent_to_yaml_dict(agent: AgentConfig) -> dict:
@@ -348,7 +366,7 @@ def save_culture_yaml(directory: str, agents: list[AgentConfig]) -> None:
     else:
         data = {"agents": [_agent_to_yaml_dict(a) for a in agents]}
 
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".yaml.tmp")
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=_YAML_TMP_SUFFIX)
     try:
         with os.fdopen(fd, "w") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
@@ -374,7 +392,7 @@ def _save_server_raw(path: str | Path, raw: dict) -> None:
     """Write raw server.yaml atomically."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".yaml.tmp")
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=_YAML_TMP_SUFFIX)
     try:
         with os.fdopen(fd, "w") as f:
             yaml.dump(raw, f, default_flow_style=False, sort_keys=False)
@@ -426,7 +444,7 @@ def save_server_config(path: str | Path, config: ServerConfig) -> None:
         "agents": config.manifest,
     }
 
-    fd, tmp_path_str = tempfile.mkstemp(dir=str(path.parent), suffix=".yaml.tmp")
+    fd, tmp_path_str = tempfile.mkstemp(dir=str(path.parent), suffix=_YAML_TMP_SUFFIX)
     try:
         with os.fdopen(fd, "w") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)

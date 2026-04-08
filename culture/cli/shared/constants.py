@@ -4,7 +4,7 @@ import os
 
 from culture.bots.config import BOT_CONFIG_FILE  # noqa: F401
 
-DEFAULT_CONFIG = os.path.expanduser("~/.culture/agents.yaml")
+DEFAULT_CONFIG = os.path.expanduser("~/.culture/server.yaml")
 LOG_DIR = os.path.expanduser("~/.culture/logs")
 
 _CONFIG_HELP = "Config file path"

@@ -1,6 +1,3 @@
-import os
-import tempfile
-
 import pytest
 
 
@@ -344,10 +341,14 @@ agents:
 
 
 def test_load_config_or_default_missing(tmp_path):
-    """Missing file returns default config."""
+    """Missing file with no fallback returns default config."""
     from culture.config import load_config_or_default
 
-    config = load_config_or_default(str(tmp_path / "missing.yaml"))
+    # Pass a nonexistent fallback to avoid picking up real ~/.culture/agents.yaml
+    config = load_config_or_default(
+        str(tmp_path / "missing.yaml"),
+        fallback=str(tmp_path / "also-missing.yaml"),
+    )
     assert config.server.name == "culture"
     assert config.agents == []
 

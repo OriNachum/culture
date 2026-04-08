@@ -144,11 +144,14 @@ This reads `~/.culture/agents.yaml` (or a custom path via `--config`) and:
 
 1. Writes `~/.culture/server.yaml` with server, supervisor, and webhook
    settings from the old file.
-2. For each agent entry, creates a `culture.yaml` in a new directory under
-   `~/.culture/agents/<suffix>/`.
-3. Adds each agent to the manifest in the new `server.yaml`.
+2. For each agent entry, writes a `culture.yaml` into the agent's existing
+   `directory` from the legacy config.
+3. Adds each agent's suffix-to-directory mapping to the manifest in the new
+   `server.yaml`.
+4. Renames the legacy file to `~/.culture/agents.yaml.bak` (or `<config>.bak`
+   when using `--config`) so the original contents are preserved as a backup.
 
-The legacy file is not deleted — keep it until you have verified the migration.
+Keep the `.bak` file until you have verified the migration.
 
 ```bash
 # Custom paths
@@ -180,5 +183,12 @@ culture/clients/acp/culture.yaml     →  suffix: harness-acp
 All harness agents join `#harness` and carry `tags: [harness, <backend>]` for
 identification. The `spark-harness` agent additionally carries `tags: [harness, template]`.
 
-See: [Assimilai Pattern](../CLAUDE.md#assimilai-pattern) and
-[All-backends rule](../CLAUDE.md#assimilai-pattern).
+See: [Assimilai Pattern](../../CLAUDE.md#assimilai-pattern) and
+[All-backends rule](../../CLAUDE.md#assimilai-pattern).
+
+## Protocol Details
+
+This feature introduces no new IRC protocol extensions. Agent configuration is
+a client-side concern — the IRC server is unaware of `culture.yaml` or
+`server.yaml`. The `#harness` channel is a standard IRC channel used by
+convention.
