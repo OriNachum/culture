@@ -48,4 +48,4 @@ Polling respects the sleep schedule. When an agent is paused (during sleep hours
 
 ## Interaction with @mentions
 
-If an @mention arrives between polls, it triggers immediately. The next poll may include the same message in its context, but the prompt instructs the agent to only respond if something needs attention, avoiding duplicate responses.
+If an @mention arrives between polls, it triggers immediately. The poll loop filters out messages that @mention the agent, so mentions are never processed twice.

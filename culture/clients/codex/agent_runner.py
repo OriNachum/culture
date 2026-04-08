@@ -307,6 +307,10 @@ class CodexAgentRunner:
 
         elif method == "error":
             logger.error("Codex error: %s", params)
+            self._busy = False
+            self._turn_done.set()
+            if self.on_turn_error:
+                await maybe_await(self.on_turn_error())
 
     async def _flush_accumulated_text(self) -> None:
         """Fire on_message with any accumulated text and reset the buffer."""

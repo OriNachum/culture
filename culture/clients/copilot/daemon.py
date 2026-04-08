@@ -332,6 +332,7 @@ class CopilotDaemon:
         self._consecutive_turn_failures += 1
         if self._consecutive_turn_failures >= MAX_CONSECUTIVE_TURN_FAILURES:
             self._paused = True
+            self._manually_paused = True
             logger.error(
                 "Agent %s paused after %d consecutive turn failures",
                 self.agent.nick,

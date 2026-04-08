@@ -29,6 +29,8 @@ from culture.clients.BACKEND.message_buffer import MessageBuffer
 from culture.clients.BACKEND.socket_server import SocketServer
 from culture.clients.BACKEND.webhook import AlertEvent, WebhookClient
 
+MAX_CONSECUTIVE_TURN_FAILURES = 3
+
 # IPC validation error messages
 _ERR_MISSING_CHANNEL = "Missing 'channel'"
 _ERR_MISSING_CHANNEL_THREAD = "Missing 'channel' or 'thread'"
@@ -75,6 +77,9 @@ class AgentDaemon:
         from collections import deque
 
         self._mention_targets: deque[str] = deque()
+
+        # Crash-recovery state
+        self._consecutive_turn_failures: int = 0
 
         # Pause/sleep state
         self._paused: bool = False
@@ -290,6 +295,15 @@ class AgentDaemon:
                     relay_target,
                     "Sorry, I encountered an error processing your request.",
                 )
+        self._consecutive_turn_failures += 1
+        if self._consecutive_turn_failures >= MAX_CONSECUTIVE_TURN_FAILURES:
+            self._paused = True
+            self._manually_paused = True
+            logger.error(
+                "Agent %s paused after %d consecutive turn failures",
+                self.agent.nick,
+                self._consecutive_turn_failures,
+            )
 
     def _on_mention(self, target: str, sender: str, text: str) -> None:
         """Called when the agent is @mentioned. Sends prompt to runner.

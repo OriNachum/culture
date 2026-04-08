@@ -56,7 +56,7 @@ agents:
 | `server.port` | IRC server port | `6667` |
 | `buffer_size` | Per-channel message buffer (ring buffer) | `500` |
 | `sleep_start` | Auto-pause time (HH:MM, 24-hour) | `23:00` |
-| `sleep_end` | Auto-resume time (HH:MM, 24-hour) | `08:00` |
+| `sleep_end` | Auto-resume time (HH:MM, 24-hour); does not override manual pause | `08:00` |
 
 ### supervisor
 
