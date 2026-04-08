@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.5.0] - 2026-04-09
+
+
+### Added
+
+- Decentralized agent configuration with per-directory culture.yaml files
+- New ~/.culture/server.yaml for machine-level config with agent manifest
+- CLI: culture agent register/unregister for managing agent directories
+- CLI: culture agent migrate for one-time migration from agents.yaml
+- Unified culture/config.py module with AgentConfig, ServerConfig, auto-detection
+- culture.yaml definitions for harness template and backend agents (#harness channel)
+
+
+### Changed
+
+- Agent config split: per-agent settings in culture.yaml, server settings in server.yaml
+- CLI agent commands now support both server.yaml and legacy agents.yaml formats
+
 ## [4.4.2] - 2026-04-08
 
 
