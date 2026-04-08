@@ -13,28 +13,24 @@ from pathlib import Path
 import yaml
 
 from culture.clients.claude.config import (
-    AgentConfig,
-    DaemonConfig,
     add_agent_to_config,
     archive_agent,
-    load_config,
-    load_config_or_default,
     remove_agent,
-    sanitize_agent_name,
     unarchive_agent,
 )
-from culture.config import AgentConfig as NewAgentConfig
 from culture.config import (
+    AgentConfig,
+    DaemonConfig,
     ServerConfig,
     ServerConnConfig,
     SupervisorConfig,
     WebhookConfig,
     add_to_manifest,
-)
-from culture.config import load_config_or_default as load_server_config_or_default
-from culture.config import (
+    load_config,
+    load_config_or_default,
     load_culture_yaml,
     remove_from_manifest,
+    sanitize_agent_name,
     save_culture_yaml,
     save_server_config,
 )
@@ -1013,7 +1009,7 @@ def _cmd_register(args: argparse.Namespace) -> None:
         print(f"Suffix {args.suffix!r} not found in culture.yaml", file=sys.stderr)
         sys.exit(1)
 
-    config = load_server_config_or_default(args.config)
+    config = load_config_or_default(args.config)
     server_name = config.server.name
 
     for agent in targets:
@@ -1028,7 +1024,7 @@ def _cmd_register(args: argparse.Namespace) -> None:
 def _cmd_unregister(args: argparse.Namespace) -> None:
     """Remove an agent from the manifest."""
     target = args.target
-    config = load_server_config_or_default(args.config)
+    config = load_config_or_default(args.config)
 
     prefix = f"{config.server.name}-"
     suffix = target.removeprefix(prefix) if target.startswith(prefix) else target
@@ -1088,7 +1084,7 @@ def _cmd_migrate(args: argparse.Namespace) -> None:
             }
             skip_keys = set(known_fields.keys()) | {"nick", "directory", "agent"}
             extras = {k: v for k, v in agent_raw.items() if k not in skip_keys}
-            agents.append(NewAgentConfig(**known_fields, extras=extras))
+            agents.append(AgentConfig(**known_fields, extras=extras))
             manifest[suffix] = directory
 
         dir_path = Path(directory)
