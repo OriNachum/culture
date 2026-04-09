@@ -101,3 +101,11 @@ async def test_describe_activity_truncates(daemon):
     desc = daemon._describe_activity()
     assert len(desc) <= 120
     assert desc.endswith("...")
+
+
+@pytest.mark.asyncio
+async def test_ipc_send_rejects_whitespace_only_message(daemon):
+    """Whitespace-only messages should be rejected like empty messages."""
+    resp = await daemon._ipc_irc_send("req-ws", {"channel": "#general", "message": "   "})
+    assert resp["ok"] is False
+    assert "message" in resp["error"].lower()

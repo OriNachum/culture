@@ -721,7 +721,7 @@ class CopilotDaemon:
         text = msg.get("message", "")
         if not channel:
             return make_response(req_id, ok=False, error=_ERR_MISSING_CHANNEL)
-        if not text:
+        if not text or not text.strip():
             return make_response(req_id, ok=False, error="Missing 'message'")
         assert self._transport is not None
         await self._transport.send_privmsg(channel, text)
@@ -835,7 +835,7 @@ class CopilotDaemon:
         question = msg.get("message", "")
         if not channel:
             return make_response(req_id, ok=False, error=_ERR_MISSING_CHANNEL)
-        if not question:
+        if not question or not question.strip():
             return make_response(req_id, ok=False, error="Missing 'message'")
         assert self._transport is not None
         await self._transport.send_privmsg(channel, question)

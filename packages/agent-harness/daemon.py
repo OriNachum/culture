@@ -367,6 +367,10 @@ class AgentDaemon:
     async def _ipc_irc_send(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
         message = msg.get("message", "")
+        if not channel:
+            return make_response(req_id, ok=False, error="Missing 'channel'")
+        if not message or not message.strip():
+            return make_response(req_id, ok=False, error="Missing 'message'")
         if self._transport:
             await self._transport.send_privmsg(channel, message)
         return make_response(req_id, ok=True)
@@ -390,6 +394,10 @@ class AgentDaemon:
     async def _ipc_irc_ask(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
         message = msg.get("message", "")
+        if not channel:
+            return make_response(req_id, ok=False, error="Missing 'channel'")
+        if not message or not message.strip():
+            return make_response(req_id, ok=False, error="Missing 'message'")
         if self._transport and channel:
             await self._transport.send_privmsg(channel, message)
         if self._webhook:
