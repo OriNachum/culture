@@ -29,6 +29,9 @@ _ERR_MISSING_CHANNEL = "Missing 'channel'"
 _ERR_MISSING_CHANNEL_THREAD = "Missing 'channel' or 'thread'"
 _ERR_MISSING_CHANNEL_THREAD_MSG = "Missing 'channel', 'thread', or 'message'"
 
+# Regex to extract @mentioned nicks from messages
+_MENTION_RE = re.compile(r"@([\w-]+)")
+
 
 class AgentDaemon:
     """Central orchestrator that ties together the IRC transport, socket server,
@@ -640,6 +643,21 @@ class AgentDaemon:
             self._status_query_event = None
             self._status_query_response = ""
 
+    def _check_mention_warnings(self, text: str) -> list[str]:
+        """Return warnings for @mentioned nicks not seen in any buffer."""
+        mentions = _MENTION_RE.findall(text)
+        if not mentions or not self._buffer:
+            return []
+        known_nicks: set[str] = set()
+        for buf in self._buffer._buffers.values():
+            for m in buf:
+                known_nicks.add(m.nick)
+        warnings = []
+        for nick in mentions:
+            if nick not in known_nicks:
+                warnings.append(f"Mentioned nick not found: {nick}")
+        return warnings
+
     async def _ipc_irc_send(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
         text = msg.get("message", "")
@@ -651,7 +669,11 @@ class AgentDaemon:
         if channel.startswith("#") and channel not in self._transport.channels:
             return make_response(req_id, ok=False, error=f"Not joined to {channel}")
         await self._transport.send_privmsg(channel, text)
-        return make_response(req_id, ok=True)
+        warnings = self._check_mention_warnings(text)
+        resp = make_response(req_id, ok=True)
+        if warnings:
+            resp["warnings"] = warnings
+        return resp
 
     def _ipc_irc_read(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
