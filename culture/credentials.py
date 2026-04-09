@@ -21,12 +21,16 @@ SERVICE_NAME = "culture"
 
 def _run(args: list[str], input: str | None = None) -> tuple[int, str]:
     """Run a command and return (returncode, stdout)."""
-    result = subprocess.run(
-        args,
-        input=input,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            args,
+            input=input,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        logger.warning("Command not found: %s", args[0])
+        return 127, ""
     return result.returncode, result.stdout.strip()
 
 

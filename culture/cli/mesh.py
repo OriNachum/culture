@@ -469,16 +469,17 @@ def _upgrade_culture_package(args: argparse.Namespace) -> bool:
         os.execvp(culture_bin, reexec_args)
 
 
-def _wait_for_server_port(port: int, retries: int = 50, interval: float = 0.1) -> None:
-    """Poll until *port* accepts a TCP connection."""
+def _wait_for_server_port(port: int, retries: int = 50, interval: float = 0.1) -> bool:
+    """Poll until *port* accepts a TCP connection. Returns True on success."""
     import socket as _socket
 
     for _ in range(retries):
         try:
             with _socket.create_connection(("localhost", port), timeout=1):
-                return
+                return True
         except OSError:
             time.sleep(interval)
+    return False
 
 
 def _dry_run_restart(mesh, server_name: str) -> None:
@@ -509,13 +510,16 @@ def _restart_single_service(svc_name: str, fallback_cmd: list[str], restart_serv
 
 def _restart_mesh_services(
     mesh, server_name: str, culture_bin: str, config_path: str, dry_run: bool
-) -> None:
-    """Stop agents and server, regenerate service entries, then restart everything."""
+) -> bool:
+    """Stop agents and server, regenerate service entries, then restart everything.
+
+    Returns True if the server came up successfully, False otherwise.
+    """
     print(f"Restarting mesh node '{server_name}'...")
 
     if dry_run:
         _dry_run_restart(mesh, server_name)
-        return
+        return True
 
     for agent in mesh.agents:
         full_nick = f"{server_name}-{agent.nick}"
@@ -561,7 +565,13 @@ def _restart_mesh_services(
     ]
     _restart_single_service(server_svc, server_fallback, restart_service)
 
-    _wait_for_server_port(mesh.server.port)
+    if not _wait_for_server_port(mesh.server.port):
+        print(
+            f"  Error: server {server_name} did not start on port {mesh.server.port}. "
+            f"Check logs: journalctl --user -u culture-server-{server_name}",
+            file=sys.stderr,
+        )
+        return False
 
     for agent in mesh.agents:
         full_nick = f"{server_name}-{agent.nick}"
@@ -579,6 +589,7 @@ def _restart_mesh_services(
         _restart_single_service(agent_svc, agent_fallback, restart_service)
 
     print()
+    return True
 
 
 def _resolve_mesh_for_server(server_name: str, config_path: str):
@@ -630,6 +641,7 @@ def _cmd_update(args: argparse.Namespace) -> None:
     culture_bin = shutil.which("culture") or "culture"
 
     running = list_servers()
+    failed = []
 
     if running:
         for srv in running:
@@ -640,7 +652,10 @@ def _cmd_update(args: argparse.Namespace) -> None:
                     file=sys.stderr,
                 )
                 continue
-            _restart_mesh_services(mesh, srv["name"], culture_bin, args.config, args.dry_run)
+            if not _restart_mesh_services(
+                mesh, srv["name"], culture_bin, args.config, args.dry_run
+            ):
+                failed.append(srv["name"])
     else:
         try:
             mesh = load_mesh_config(args.config)
@@ -648,6 +663,16 @@ def _cmd_update(args: argparse.Namespace) -> None:
             mesh = generate_mesh_from_agents(args.config)
             if mesh is None:
                 sys.exit(1)
-        _restart_mesh_services(mesh, mesh.server.name, culture_bin, args.config, args.dry_run)
+        if not _restart_mesh_services(
+            mesh, mesh.server.name, culture_bin, args.config, args.dry_run
+        ):
+            failed.append(mesh.server.name)
+
+    if failed:
+        print(
+            f"Update finished with errors. Failed to restart: {', '.join(failed)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     print("Update complete. All services restarted.")
