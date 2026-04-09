@@ -287,3 +287,28 @@ async def test_own_messages_in_buffer(server, make_client):
     msgs = buf.read("#general", limit=50)
     assert any(m.text == "my own message" and m.nick == "testserv-bot" for m in msgs)
     await transport.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_own_dm_messages_in_buffer(server, make_client):
+    """Agent's own sent DMs should be buffered under DM:{target}."""
+    buf = MessageBuffer()
+    transport = IRCTransport(
+        host="127.0.0.1",
+        port=server.config.port,
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general"],
+        buffer=buf,
+    )
+    await transport.connect()
+    await asyncio.sleep(0.3)
+    human = await make_client(nick="testserv-ori", user="ori")
+    await human.recv_all(timeout=0.3)
+
+    await transport.send_privmsg("testserv-ori", "hello via DM")
+    await asyncio.sleep(0.1)
+
+    msgs = buf.read("DM:testserv-ori", limit=50)
+    assert any(m.text == "hello via DM" and m.nick == "testserv-bot" for m in msgs)
+    await transport.disconnect()

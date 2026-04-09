@@ -758,10 +758,7 @@ class ACPDaemon:
         mentions = _MENTION_RE.findall(text)
         if not mentions or not self._buffer:
             return []
-        known_nicks: set[str] = set()
-        for buf in self._buffer._buffers.values():
-            for m in buf:
-                known_nicks.add(m.nick)
+        known_nicks = self._buffer.known_nicks()
         warnings = []
         for nick in mentions:
             if nick not in known_nicks:
@@ -895,6 +892,8 @@ class ACPDaemon:
         channel = msg.get("channel", "")
         if not channel:
             return make_response(req_id, ok=False, error=_ERR_MISSING_CHANNEL)
+        if not channel.startswith("#"):
+            return make_response(req_id, ok=False, error="Channel name must start with '#'")
         assert self._transport is not None
         topic = msg.get("topic")  # None means query, string means set
         await self._transport.send_topic(channel, topic)
