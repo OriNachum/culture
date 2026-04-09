@@ -112,11 +112,15 @@ class IRCTransport:
         await self._send_raw(f"THREADS {channel}")
 
     async def join_channel(self, channel: str) -> None:
+        if not channel.startswith("#"):
+            return
         await self._send_raw(f"JOIN {channel}")
         if channel not in self.channels:
             self.channels.append(channel)
 
     async def part_channel(self, channel: str) -> None:
+        if not channel.startswith("#"):
+            return
         await self._send_raw(f"PART {channel}")
         if channel in self.channels:
             self.channels.remove(channel)

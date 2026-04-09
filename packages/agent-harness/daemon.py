@@ -412,12 +412,16 @@ class AgentDaemon:
 
     async def _ipc_irc_join(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
+        if not channel.startswith("#"):
+            return make_response(req_id, ok=False, error="Channel name must start with '#'")
         if self._transport:
             await self._transport.join_channel(channel)
         return make_response(req_id, ok=True)
 
     async def _ipc_irc_part(self, req_id: str, msg: dict) -> dict:
         channel = msg.get("channel", "")
+        if not channel.startswith("#"):
+            return make_response(req_id, ok=False, error="Channel name must start with '#'")
         if self._transport:
             await self._transport.part_channel(channel)
         return make_response(req_id, ok=True)

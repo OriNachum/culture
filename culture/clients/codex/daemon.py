@@ -741,6 +741,8 @@ class CodexDaemon:
         channel = msg.get("channel", "")
         if not channel:
             return make_response(req_id, ok=False, error=_ERR_MISSING_CHANNEL)
+        if not channel.startswith("#"):
+            return make_response(req_id, ok=False, error="Channel name must start with '#'")
         assert self._transport is not None
         await self._transport.join_channel(channel)
         return make_response(req_id, ok=True)
@@ -749,6 +751,8 @@ class CodexDaemon:
         channel = msg.get("channel", "")
         if not channel:
             return make_response(req_id, ok=False, error=_ERR_MISSING_CHANNEL)
+        if not channel.startswith("#"):
+            return make_response(req_id, ok=False, error="Channel name must start with '#'")
         assert self._transport is not None
         await self._transport.part_channel(channel)
         return make_response(req_id, ok=True)

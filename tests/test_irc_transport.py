@@ -222,3 +222,45 @@ async def test_multiline_privmsg_skips_empty_lines(server, make_client):
     assert "first" in privmsgs[0]
     assert "second" in privmsgs[1]
     await transport.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_join_rejects_channel_without_hash(server):
+    """Joining a channel without # prefix should fail."""
+    buf = MessageBuffer()
+    transport = IRCTransport(
+        host="127.0.0.1",
+        port=server.config.port,
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general"],
+        buffer=buf,
+    )
+    await transport.connect()
+    try:
+        await asyncio.sleep(0.3)
+        await transport.join_channel("nohash")
+        assert "nohash" not in transport.channels
+    finally:
+        await transport.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_part_rejects_channel_without_hash(server):
+    """Parting a channel without # prefix should be a no-op."""
+    buf = MessageBuffer()
+    transport = IRCTransport(
+        host="127.0.0.1",
+        port=server.config.port,
+        nick="testserv-bot",
+        user="bot",
+        channels=["#general"],
+        buffer=buf,
+    )
+    await transport.connect()
+    try:
+        await asyncio.sleep(0.3)
+        await transport.part_channel("nohash")
+        # Should not crash or modify state
+    finally:
+        await transport.disconnect()
