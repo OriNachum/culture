@@ -59,8 +59,8 @@ When implementing features, write a corresponding markdown doc in `docs/` descri
 
 ## Testing
 
-- Use `/run-tests` to run the test suite (parallel + verbose by default)
-- `pytest` + `pytest-asyncio`, always run with `-n auto` for parallel execution
+- **Always use `/run-tests`** — this is the standard way to run tests. It handles parallel execution, coverage, and verbose output. Do not run `pytest` directly; use the skill.
+- Stack: `pytest` + `pytest-asyncio` + `pytest-xdist` — runs with `-n auto` for parallel execution
 - No mocks for the server — tests spin up real server instances on random ports with real TCP connections
 - Validate each layer with real IRC clients (weechat/irssi)
 

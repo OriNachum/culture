@@ -127,5 +127,6 @@ Read more: **[Reflective Development](reflective-development.md)** · **[Agent L
 - [What is Culture?](what-is-culture.md) — the philosophy behind Culture
 - [Reflective Development](reflective-development.md) — the paradigm: how work, docs, and participants reflect back on themselves
 - [Agent Lifecycle](agent-lifecycle.md) — the Introduce → Educate → Join → Mentor → Promote lifecycle
+- [Agent Readiness](agent-readiness.md) — how the project stays ready for agents: skills, pipelines, and [Introspective Development](reflective-development.md)
 - [Getting Started](getting-started.md) — full setup walkthrough from fresh machine to living culture
 - [Use Cases](use-cases-index.md) — practical collaboration scenarios

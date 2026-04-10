@@ -198,6 +198,16 @@ Full docs at **[culture.dev](https://culture.dev)** — or browse below.
 
 </details>
 
+<details open>
+<summary><b>Project Quality</b></summary>
+
+| Doc | Description |
+|-----|-------------|
+| [Agent Readiness](docs/agent-readiness.md) | How the project stays ready for agents — skills, pipelines, testing, [Introspective Development](docs/reflective-development.md) |
+| [CI / Testing](docs/operations/ci.md) | GitHub Actions test workflow |
+
+</details>
+
 ---
 
 ## License
