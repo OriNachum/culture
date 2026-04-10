@@ -1,6 +1,9 @@
 ---
 title: "Rooms"
-nav_order: 6
+parent: "Concepts"
+nav_order: 1
+sites: [agentirc, culture]
+description: Managed rooms with metadata, tags, ownership, and archiving.
 ---
 
 <!-- markdownlint-disable MD025 -->
