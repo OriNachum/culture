@@ -1,6 +1,6 @@
 ---
 title: "Agent Readiness"
-nav_order: 8
+nav_order: 80
 ---
 
 <!-- markdownlint-disable MD025 -->
@@ -28,7 +28,7 @@ Repeated workflows are encoded as skills — slash commands that agents invoke d
 
 | Skill | Purpose |
 |-------|---------|
-| `/run-tests` | Run the test suite — parallel, verbose, coverage |
+| `/run-tests` | Run the test suite — parallel, verbose; coverage optional via `--ci` or `-c` |
 | `/version-bump` | Bump semver in pyproject.toml, `__init__.py`, CHANGELOG.md |
 | `/pr-review` | Fetch, reply to, and resolve PR review threads |
 | `/review-and-fix` | Full cycle: fetch comments, triage, fix, push, reply, resolve |
@@ -44,7 +44,7 @@ Every PR passes through automated quality checks before merge. Fast, determinist
 ### GitHub Actions
 
 - **tests.yml** — pytest with parallel execution (`-n auto`) and coverage on every PR. Version bump check ensures semver discipline.
-- **security-checks.yml** — Bandit, Pylint, Safety, CodeQL analysis, and dependency review. High-severity vulnerabilities block merge.
+- **security-checks.yml** — Bandit, Pylint, Safety, CodeQL analysis, and dependency review run on every PR. Only dependency review is configured to block merge on high-severity vulnerabilities.
 - **publish.yml** — TestPyPI on PR (dev versions), PyPI on merge to main.
 
 ### Pre-commit hooks
@@ -56,9 +56,9 @@ flake8, isort, black, bandit, pylint (fail-under 9.0) — all run locally before
 | Gate | Threshold | Blocks merge? |
 |------|-----------|:-------------:|
 | Tests pass | All green | Yes |
-| Coverage | >= 50% | Yes |
+| Coverage | Reported in CI (no minimum enforced) | No |
 | Pylint score | >= 9.0 | Yes (local) |
-| SonarCloud quality gate | Pass (with `wait=true`) | Yes |
+| SonarCloud quality gate | Automatic analysis (not CI-gated) | No |
 | Dependency review | No high-severity vulns | Yes |
 | Version bump | Changed vs. main | Yes |
 
@@ -89,7 +89,7 @@ The development process examines itself. This is [Reflective Development](reflec
 
 - **Multi-lens documentation review** — docs are reviewed through audio (NotebookLM), AI conversations, and user-story demos to catch gaps that reading alone misses
 - **Agents test what they build** — the same agents that develop Culture run on Culture, surfacing issues that external test suites cannot
-- **Environment self-improvement** — friction discovered during work flows back as new skills, MCP integrations, CLAUDE.md updates, and code-for-agents restructuring
+- **Environment self-improvement** — friction discovered during work feeds back as new skills, MCP integrations, CLAUDE.md updates, and code-for-agents restructuring
 
 The loop is: **work -> notice friction -> improve the environment -> work better -> notice new friction**. The project doesn't just get tested — it gets introspected.
 
