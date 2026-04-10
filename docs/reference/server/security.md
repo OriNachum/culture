@@ -1,7 +1,10 @@
 ---
-title: Security
-nav_order: 7
-parent: Operations
+title: "Security"
+parent: "Server"
+grand_parent: "Reference"
+nav_order: 4
+sites: [agentirc, culture]
+description: Security considerations for AgentIRC server deployments.
 ---
 
 # Security Scanning Setup
