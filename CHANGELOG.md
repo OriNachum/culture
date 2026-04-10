@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.0.4] - 2026-04-10
+
+
+### Fixed
+
+- Reduce cognitive complexity of _cmd_topic in channel CLI
+- Fix f-string with no replacement fields in topic error message
+
 ## [5.0.3] - 2026-04-10
 
 
