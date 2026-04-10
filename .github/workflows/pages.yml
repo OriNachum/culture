@@ -28,6 +28,12 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Gather AgentIRC docs
+        run: |
+          rm -rf docs/agentirc
+          mkdir -p docs/agentirc
+          cp -r culture/agentirc/docs/. docs/agentirc
+
       - name: Build with Jekyll
         run: bundle exec jekyll build
         env:
