@@ -291,31 +291,36 @@ def _cmd_topic(args: argparse.Namespace) -> None:
     target = args.target if args.target.startswith("#") else f"#{args.target}"
 
     if args.text is not None:
-        # Setting topic requires the daemon (must act as agent nick)
-        resp = _require_ipc("irc_topic", channel=target, topic=args.text)
-        if resp.get("ok"):
-            print(f"Topic set for {target}")
-        else:
-            print(f"Error: {resp.get('error', 'unknown error')}", file=sys.stderr)
-            sys.exit(1)
+        _topic_set(target, args.text)
     else:
-        # Reading topic — the daemon IPC handler returns results
-        # asynchronously via IRC numerics, so use IPC to fire the query
-        # and report that it was sent.
-        resp = _try_ipc("irc_topic", channel=target)
-        if resp and resp.get("ok"):
-            data = resp.get("data") or {}
-            if "topic" in data:
-                topic = data["topic"]
-                print(f"Topic for {target}: {topic}" if topic else f"No topic set for {target}")
-            else:
-                print(f"Topic query sent for {target} (result arrives asynchronously)")
-        else:
-            print(
-                f"Error: topic query requires a running agent daemon (CULTURE_NICK).",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        _topic_read(target)
+
+
+def _topic_set(target: str, text: str) -> None:
+    """Set channel topic via agent daemon."""
+    resp = _require_ipc("irc_topic", channel=target, topic=text)
+    if resp.get("ok"):
+        print(f"Topic set for {target}")
+    else:
+        print(f"Error: {resp.get('error', 'unknown error')}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _topic_read(target: str) -> None:
+    """Read channel topic via agent daemon IPC."""
+    resp = _try_ipc("irc_topic", channel=target)
+    if not resp or not resp.get("ok"):
+        print(
+            "Error: topic query requires a running agent daemon (CULTURE_NICK).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    data = resp.get("data") or {}
+    if "topic" not in data:
+        print(f"Topic query sent for {target} (result arrives asynchronously)")
+        return
+    topic = data["topic"]
+    print(f"Topic for {target}: {topic}" if topic else f"No topic set for {target}")
 
 
 def _cmd_compact(args: argparse.Namespace) -> None:
