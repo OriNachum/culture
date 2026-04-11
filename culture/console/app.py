@@ -230,10 +230,9 @@ class ConsoleApp(App):
             return
         channel = cmd.args[0]
         await self._client.join(channel)
-        self._current_channel = channel
         self._sync_sidebar()
-        chat.set_channel(channel)
         chat.add_message(time.time(), "", "system", f"Joined [bold]{channel}[/]")
+        await self._switch_to_channel(channel)
 
     async def _handle_part(self, cmd) -> None:  # noqa: ANN001
         chat: ChatPanel = self.query_one(ChatPanel)
@@ -554,16 +553,15 @@ class ConsoleApp(App):
         if not channels:
             return
         if self._current_channel not in channels:
-            self._current_channel = channels[0]
+            target = channels[0]
         else:
             idx = channels.index(self._current_channel)
             idx = (idx + direction) % len(channels)
-            self._current_channel = channels[idx]
+            target = channels[idx]
 
-        chat: ChatPanel = self.query_one(ChatPanel)
-        sidebar: Sidebar = self.query_one(Sidebar)
-        chat.set_channel(self._current_channel)
-        sidebar.active_channel = self._current_channel
+        task = asyncio.create_task(self._switch_to_channel(target))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     # ------------------------------------------------------------------
     # Quit
@@ -594,19 +592,9 @@ class ConsoleApp(App):
 
     def on_sidebar_channel_selected(self, event: Sidebar.ChannelSelected) -> None:
         """Switch to the selected channel when user clicks sidebar."""
-        self._current_channel = event.channel
-        self._current_view = "chat"
-        chat: ChatPanel = self.query_one(ChatPanel)
-        sidebar: Sidebar = self.query_one(Sidebar)
-        chat.set_channel(self._current_channel)
-        sidebar.active_channel = self._current_channel
-
-        # Re-show input if hidden
-        try:
-            input_widget = self.query_one(self._CHAT_INPUT_ID)
-            input_widget.display = True
-        except Exception:
-            pass
+        task = asyncio.create_task(self._switch_to_channel(event.channel))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     def on_sidebar_entity_selected(self, event: Sidebar.EntitySelected) -> None:
         """Show agent detail when user clicks an entity in the sidebar."""
@@ -617,6 +605,41 @@ class ConsoleApp(App):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    async def _switch_to_channel(self, channel: str) -> None:
+        """Switch to a channel, update UI, and auto-load recent history."""
+        if not channel:
+            return
+        # Guard against stale results from rapid switching
+        self._current_channel = channel
+        self._current_view = "chat"
+
+        sidebar: Sidebar = self.query_one(Sidebar)
+        chat: ChatPanel = self.query_one(ChatPanel)
+        sidebar.active_channel = channel
+        chat.set_channel(channel)
+        chat.clear_log()
+
+        # Re-show input if hidden (e.g., coming from overview/status view)
+        try:
+            input_widget = self.query_one(self._CHAT_INPUT_ID)
+            input_widget.display = True
+        except Exception:
+            pass
+
+        # Fetch recent history
+        entries = await self._client.history(channel, limit=20)
+        # Stale check: if user switched away during fetch, discard results
+        if self._current_channel != channel:
+            return
+        for e in entries:
+            try:
+                ts = float(e.get("timestamp", 0))
+            except (ValueError, TypeError):
+                ts = time.time()
+            chat.add_message(ts, "", e.get("nick", ""), e.get("text", ""))
+        if not entries:
+            chat.add_message(time.time(), "", "system", f"[dim]No history for {channel}[/]")
 
     def _sync_sidebar(self) -> None:
         """Sync the sidebar channel list from the client's joined_channels."""
