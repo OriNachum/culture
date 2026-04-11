@@ -233,8 +233,8 @@ class ConsoleApp(App):
         channel = cmd.args[0]
         await self._client.join(channel)
         self._sync_sidebar()
-        chat.add_message(time.time(), "", "system", f"Joined [bold]{channel}[/]")
         await self._switch_to_channel(channel)
+        chat.add_message(time.time(), "", "system", f"Joined [bold]{channel}[/]")
 
     async def _handle_part(self, cmd) -> None:  # noqa: ANN001
         chat: ChatPanel = self.query_one(ChatPanel)

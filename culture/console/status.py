@@ -45,6 +45,8 @@ def _derive_activity(data: dict) -> str:
         return "circuit-open"
     if data.get("paused"):
         return "paused"
+    if not data.get("running"):
+        return "idle"
     return data.get("activity", "idle")
 
 
