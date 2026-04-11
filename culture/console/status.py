@@ -67,7 +67,7 @@ async def query_all_agents() -> dict[str, str]:
             data = await asyncio.wait_for(query_agent_status(path), timeout=3.0)
             if data:
                 results[nick] = _derive_activity(data)
-        except (TimeoutError, Exception):
+        except Exception:
             logger.debug("Failed to query status for %s", nick)
 
     await asyncio.gather(*[_query_one(nick, path) for nick, path in sockets])
