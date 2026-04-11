@@ -15,6 +15,7 @@ from textual.widgets import Footer, Header
 from culture.aio import maybe_await
 from culture.console.client import ConsoleIRCClient
 from culture.console.commands import CommandType, parse_command
+from culture.console.status import query_all_agents
 from culture.console.widgets.chat import ChatPanel
 from culture.console.widgets.info_panel import InfoPanel
 from culture.console.widgets.sidebar import ChannelItem, EntityItem, Sidebar
@@ -22,6 +23,7 @@ from culture.console.widgets.sidebar import ChannelItem, EntityItem, Sidebar
 logger = logging.getLogger(__name__)
 
 BUFFER_INTERVAL = 10.0  # seconds between UI refreshes
+STATUS_POLL_INTERVAL = 30.0  # seconds between agent status polls
 
 
 class ConsoleApp(App):
@@ -65,6 +67,7 @@ class ConsoleApp(App):
 
         self._buffer_task: asyncio.Task | None = None
         self._background_tasks: set[asyncio.Task] = set()
+        self._status_poll_task: asyncio.Task | None = None
 
         # Dispatch table for command execution
         self._command_handlers: dict[CommandType, Any] = {
@@ -106,6 +109,7 @@ class ConsoleApp(App):
         """Set sub-title and kick off the buffer-drain loop."""
         self.sub_title = f"{self._client.nick}@{self._server_name}"
         self._buffer_task = asyncio.create_task(self._buffer_loop())
+        self._status_poll_task = asyncio.create_task(self._status_poll_loop())
 
         # Populate sidebar with any channels already joined at startup
         self._sync_sidebar()
@@ -139,6 +143,43 @@ class ConsoleApp(App):
                     nick=msg.nick,
                     text=msg.text,
                 )
+
+    async def _status_poll_loop(self) -> None:
+        """Periodically poll agent daemon sockets for status updates."""
+        # Initial poll on startup
+        await self._poll_agent_status()
+        while True:
+            try:
+                await asyncio.sleep(STATUS_POLL_INTERVAL)
+                await self._poll_agent_status()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Error in _status_poll_loop")
+
+    async def _poll_agent_status(self) -> None:
+        """Query daemon sockets and update sidebar entity activity."""
+        status_map = await query_all_agents()
+        if not status_map:
+            return
+        sidebar: Sidebar = self.query_one(Sidebar)
+        updated = False
+        new_entities = []
+        for ent in sidebar.entities:
+            if ent.nick in status_map:
+                new_ent = EntityItem(
+                    nick=ent.nick,
+                    entity_type=ent.entity_type,
+                    online=ent.online,
+                    icon=ent.icon,
+                    activity=status_map[ent.nick],
+                )
+                new_entities.append(new_ent)
+                updated = True
+            else:
+                new_entities.append(ent)
+        if updated:
+            sidebar.entities = new_entities
 
     # ------------------------------------------------------------------
     # Input handler
@@ -468,8 +509,15 @@ class ConsoleApp(App):
         chat.set_content("Agents", lines)
 
         # Update sidebar entity roster
+        status_map = await query_all_agents()
         entity_items = [
-            EntityItem(nick=nick, entity_type="agent", online=True) for nick in sorted(all_agents)
+            EntityItem(
+                nick=nick,
+                entity_type="agent",
+                online=True,
+                activity=status_map.get(nick, ""),
+            )
+            for nick in sorted(all_agents)
         ]
         sidebar.entities = entity_items
 
@@ -523,10 +571,14 @@ class ConsoleApp(App):
 
     async def action_quit_app(self) -> None:
         """Disconnect the IRC client and exit the app."""
-        if self._buffer_task:
-            self._buffer_task.cancel()
-            await asyncio.gather(self._buffer_task, return_exceptions=True)
-            self._buffer_task = None
+        for task_ref in (self._buffer_task, self._status_poll_task):
+            if task_ref:
+                task_ref.cancel()
+        tasks_to_cancel = [t for t in (self._buffer_task, self._status_poll_task) if t]
+        if tasks_to_cancel:
+            await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+        self._buffer_task = None
+        self._status_poll_task = None
 
         if self._client.connected:
             try:
