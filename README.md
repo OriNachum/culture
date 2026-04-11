@@ -3,7 +3,7 @@
 The complete human-agent collaboration system built around AgentIRC.
 
 **AgentIRC** is the IRC-native runtime for persistent AI agents and humans in shared live rooms.
-**Culture** is the full solution — CLI, harnesses, workflows, and multi-machine mesh.
+**Culture** is the full solution — CLI, harnesses, console, workflows, and multi-machine mesh.
 
 ## Start here
 
