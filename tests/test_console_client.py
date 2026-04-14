@@ -10,7 +10,7 @@ import asyncio
 
 import pytest
 
-from culture.console.client import ChatMessage, ConsoleIRCClient
+from culture.console.client import ChatMessage, ConsoleConnectionLost, ConsoleIRCClient
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -295,4 +295,44 @@ async def test_history_returns_messages(server, make_client):
     assert isinstance(entries, list)
     assert any(e.get("text") == "history test message" for e in entries)
 
+    await client.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Broken-pipe handling (issue #230)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_send_raw_raises_console_connection_lost_when_socket_broken(server):
+    """Writes to a broken socket surface as ConsoleConnectionLost, not BrokenPipeError.
+
+    Reproduces issue #230: iTerm / idle disconnects caused asyncio's
+    `StreamWriter.drain()` to raise `BrokenPipeError` which was never caught,
+    crashing the console command task. The fix wraps the write in
+    `_send_raw` and re-raises a typed `ConsoleConnectionLost`.
+    """
+    nick = "testserv-pipetest"
+    client = make_console_client(server, nick=nick)
+    await client.connect()
+    assert client.connected is True
+
+    # Force-close the server side of this client's socket. The server
+    # retains the asyncio StreamWriter on its Client object; closing it
+    # sends FIN to the console client and the next drain() there fails.
+    server_client = server.clients[nick]
+    server_client.writer.close()
+    try:
+        await server_client.writer.wait_closed()
+    except (ConnectionError, OSError):
+        pass
+
+    # Repeated writes are required — the first drain() often succeeds because
+    # data lands in the local kernel buffer before the RST is observed.
+    with pytest.raises(ConsoleConnectionLost):
+        for _ in range(20):
+            await client.send_privmsg("#nowhere", "x" * 512)
+            await asyncio.sleep(0.02)
+
+    assert client.connected is False
     await client.disconnect()

@@ -13,7 +13,7 @@ from textual.containers import Horizontal
 from textual.widgets import Footer, Header
 
 from culture.aio import maybe_await
-from culture.console.client import ConsoleIRCClient
+from culture.console.client import ConsoleConnectionLost, ConsoleIRCClient
 from culture.console.commands import CommandType, parse_command
 from culture.console.status import query_all_agents
 from culture.console.widgets.chat import ChatPanel
@@ -205,13 +205,22 @@ class ConsoleApp(App):
     async def _execute_command(self, cmd) -> None:  # noqa: ANN001
         """Dispatch a ParsedCommand to the appropriate handler."""
         handler = self._command_handlers.get(cmd.type)
-        if handler:
-            await maybe_await(handler(cmd))
-        elif cmd.type in (CommandType.START, CommandType.STOP, CommandType.RESTART):
-            self._handle_agent_management(cmd)
-        elif cmd.type == CommandType.UNKNOWN:
-            chat: ChatPanel = self.query_one(ChatPanel)
-            chat.add_message(time.time(), "", "system", f"[red]Unknown command: {cmd.text}[/]")
+        try:
+            if handler:
+                await maybe_await(handler(cmd))
+            elif cmd.type in (CommandType.START, CommandType.STOP, CommandType.RESTART):
+                self._handle_agent_management(cmd)
+            elif cmd.type == CommandType.UNKNOWN:
+                chat: ChatPanel = self.query_one(ChatPanel)
+                chat.add_message(time.time(), "", "system", f"[red]Unknown command: {cmd.text}[/]")
+        except ConsoleConnectionLost:
+            chat = self.query_one(ChatPanel)
+            chat.add_message(
+                time.time(),
+                "",
+                "system",
+                "[red]Connection to server lost. Restart the console to reconnect.[/]",
+            )
 
     # ------------------------------------------------------------------
     # Command handlers
@@ -689,7 +698,16 @@ class ConsoleApp(App):
             pass
 
         # Fetch recent history
-        entries = await self._client.history(channel, limit=20)
+        try:
+            entries = await self._client.history(channel, limit=20)
+        except ConsoleConnectionLost:
+            chat.add_message(
+                time.time(),
+                "",
+                "system",
+                "[red]Connection to server lost. Restart the console to reconnect.[/]",
+            )
+            return
         # Stale check: if user switched away during fetch, discard results
         if self._current_channel != channel:
             return

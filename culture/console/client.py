@@ -24,6 +24,10 @@ QUERY_TIMEOUT = 10.0
 REGISTER_TIMEOUT = 15.0
 
 
+class ConsoleConnectionLost(ConnectionError):
+    """Raised by ConsoleIRCClient when the underlying socket is broken mid-send."""
+
+
 @dataclass
 class ChatMessage:
     """A buffered chat message from a channel or DM."""
@@ -252,9 +256,15 @@ class ConsoleIRCClient:
 
     async def _send_raw(self, line: str) -> None:
         """Write a raw IRC line to the socket."""
-        if self._writer:
+        if not self._writer:
+            return
+        try:
             self._writer.write(f"{line}\r\n".encode())
             await self._writer.drain()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as e:
+            self.connected = False
+            logger.warning("ConsoleIRCClient: send failed (%s)", e.__class__.__name__)
+            raise ConsoleConnectionLost(str(e)) from e
 
     async def _read_loop(self) -> None:
         """Background task: read lines from socket and dispatch to _handle."""
