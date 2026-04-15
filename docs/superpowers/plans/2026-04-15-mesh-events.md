@@ -3183,6 +3183,36 @@ gh issue create --title "Add slash-command trigger type to bots" --body "Follow-
 
 ---
 
+### Task 22: Re-enable PyPI publish workflow
+
+During the multi-task rollout, the PyPI publish workflow is disabled (renamed
+to `.github/workflows/publish.yml.disabled`) so intermediate merges to `main`
+do not trigger publishes. Once all 21 tasks have merged and the feature is
+shipped as a single version bump, restore the publish workflow.
+
+**Files:**
+
+- Rename: `.github/workflows/publish.yml.disabled` → `.github/workflows/publish.yml`
+
+- [ ] **Step 1: Rename the file back**
+
+```bash
+git mv .github/workflows/publish.yml.disabled .github/workflows/publish.yml
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git commit -m "chore(ci): re-enable PyPI publish workflow after mesh events rollout"
+```
+
+- [ ] **Step 3: Open PR (or include in the final merge)**
+
+The next push to `main` (or the final PR merge) will trigger the restored
+publish workflow as usual.
+
+---
+
 ## Self-Review Notes
 
 The plan covers every spec section:
@@ -3200,3 +3230,4 @@ The plan covers every spec section:
 - **All-backends tag parsing** → Task 17
 - **Docs** → Task 18
 - **Doc-test alignment + version + PR** → Tasks 19, 20, 21
+- **Re-enable publish workflow** → Task 22 (after the feature is fully shipped)
