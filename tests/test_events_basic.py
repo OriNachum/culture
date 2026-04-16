@@ -101,3 +101,33 @@ async def test_event_data_is_base64_json(server, make_client):
     b64 = data_piece.split("=", 1)[1]
     decoded = json.loads(base64.b64decode(b64))
     assert decoded["nick"] == "testserv-bob"
+
+
+@pytest.mark.asyncio
+async def test_federated_event_uses_origin_prefix(server, make_client):
+    """An event with _origin set surfaces with system-<origin> prefix.
+
+    This locks in the contract Task 12 (SEVENT federation relay) will
+    consume on the receive side: federated events surface locally with
+    the originating peer's system user as the message source.
+    """
+    c = await make_client("testserv-alice", "alice")
+    await c.send("CAP REQ :message-tags")
+    await c.recv_until("ACK")
+    await c.send("JOIN #system")
+    await c.recv_until("366")  # end of NAMES
+    await asyncio.sleep(0.05)
+    await c.recv_all(timeout=0.2)  # flush any queued join-event PRIVMSG
+
+    ev = Event(
+        type=EventType.AGENT_CONNECT,
+        channel=None,
+        nick="alpha-bob",
+        data={"_origin": "alpha", "nick": "alpha-bob"},
+    )
+    await server.emit_event(ev)
+
+    line = await c.recv_until("event=agent.connect")
+    assert ":system-alpha!system@alpha" in line
+    # Internal _-prefixed keys are NOT in the encoded payload
+    assert "_origin" not in line

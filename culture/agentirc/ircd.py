@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from culture.agentirc.channel import Channel
 from culture.agentirc.config import ServerConfig
 from culture.agentirc.events import render_event
-from culture.agentirc.skill import Event, Skill
+from culture.agentirc.skill import Event, EventType, Skill
 from culture.bots.virtual_client import VirtualClient
 from culture.constants import (
     EVENT_TAG_DATA,
@@ -172,11 +172,11 @@ class IRCd:
     # PRIVMSGs would double-deliver them and break echo-suppression tests.
     _NO_SURFACE_TYPES = frozenset(
         {
-            "message",  # EventType.MESSAGE — already routed as PRIVMSG
-            "thread.create",  # ThreadsSkill delivers prefixed PRIVMSG
-            "thread.message",  # same
-            "thread.close",  # ThreadsSkill delivers NOTICE
-            "topic",  # TOPIC command already propagated
+            EventType.MESSAGE.value,
+            EventType.THREAD_CREATE.value,
+            EventType.THREAD_MESSAGE.value,
+            EventType.THREAD_CLOSE.value,
+            EventType.TOPIC.value,
         }
     )
 
@@ -188,10 +188,18 @@ class IRCd:
         IRCv3 message tags @event=<type>;@event-data=<base64-json>.
 
         For federated events, the prefix uses the origin server's system user
-        so consumers can identify which mesh server emitted the event.
+        so consumers can identify which mesh server emitted the event. The
+        federated-prefix branch only fires once Task 12 (SEVENT federation
+        relay) lands and SEVENT is producing _origin-tagged events on the
+        receive side. Today, all events surface with this server's prefix.
 
         Events whose content is already delivered via the normal IRC path
         (see _NO_SURFACE_TYPES) are skipped to avoid double-delivery.
+
+        HISTORY/surface invariant (consumed by Task 13): an event surfaces
+        here if and only if it lands in channel history. Events in
+        _NO_SURFACE_TYPES are delivered via their own IRC verbs and not
+        re-surfaced; HistorySkill should follow the same rule.
         """
         type_wire = event.type.value if hasattr(event.type, "value") else str(event.type)
 
