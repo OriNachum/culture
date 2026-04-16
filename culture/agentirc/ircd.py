@@ -63,6 +63,15 @@ class IRCd:
         logger.info("Bootstrapping system identity...")
         self._bootstrap_system_identity()
 
+        await self.emit_event(
+            Event(
+                type=EventType.SERVER_WAKE,
+                channel=None,
+                nick=f"{SYSTEM_USER_PREFIX}{self.config.name}",
+                data={"server": self.config.name},
+            )
+        )
+
         # Initialize bot manager and webhook HTTP listener
         from culture.bots.bot_manager import BotManager
         from culture.bots.http_listener import HttpListener
@@ -300,7 +309,20 @@ class IRCd:
         return None
 
     async def stop(self) -> None:
+        if self._stopping:
+            return
         self._stopping = True
+        try:
+            await self.emit_event(
+                Event(
+                    type=EventType.SERVER_SLEEP,
+                    channel=None,
+                    nick=f"{SYSTEM_USER_PREFIX}{self.config.name}",
+                    data={"server": self.config.name},
+                )
+            )
+        except Exception:
+            logger.exception("failed to emit server.sleep")
         # Stop bots and HTTP listener
         if self.bot_manager:
             await self.bot_manager.stop_all()

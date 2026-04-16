@@ -193,3 +193,100 @@ async def test_federated_event_uses_origin_prefix(server, make_client):
     assert ":system-alpha!system@alpha" in line
     # Internal _-prefixed keys are NOT in the encoded payload
     assert "_origin" not in line
+
+
+@pytest.mark.asyncio
+async def test_server_wake_emitted_on_start(server):
+    """server.wake is emitted during IRCd.start() and recorded in _event_log.
+
+    We assert via _event_log introspection rather than HISTORY RECENT because
+    HistorySkill only stores MESSAGE events (Task 13 extends it to lifecycle
+    events). The _event_log is the canonical emission record: every event that
+    passes through emit_event() is appended here unconditionally.
+    """
+    wake_events = [ev for _seq, ev in server._event_log if ev.type == EventType.SERVER_WAKE]
+    assert wake_events, "Expected at least one SERVER_WAKE event in _event_log after start()"
+    ev = wake_events[0]
+    assert ev.channel is None
+    assert ev.data.get("server") == server.config.name
+
+
+@pytest.mark.asyncio
+async def test_server_sleep_emitted_on_stop(tmp_path):
+    """server.sleep surfaces as a tagged PRIVMSG to #system before teardown.
+
+    We construct a dedicated IRCd instance for this test rather than using the
+    shared `server` fixture because the test calls stop() itself — which would
+    leave the fixture's own teardown calling stop() a second time on an
+    already-stopped server. Using a fresh instance keeps fixture teardown
+    trivially safe and makes the test self-contained.
+
+    The test verifies both that the event is emitted AND that the surfacing
+    reaches connected clients before any socket teardown (i.e. stop() emits
+    server.sleep at the very top).
+    """
+    import asyncio
+    from unittest.mock import patch
+
+    from culture.agentirc.config import ServerConfig
+    from culture.agentirc.ircd import IRCd
+
+    empty_bots = tmp_path / "_bots"
+    empty_bots.mkdir()
+    config = ServerConfig(name="sleepserv", host="127.0.0.1", port=0, webhook_port=0)
+
+    with (
+        patch("culture.bots.bot_manager.BOTS_DIR", empty_bots),
+        patch("culture.bots.config.BOTS_DIR", empty_bots),
+        patch("culture.bots.bot.BOTS_DIR", empty_bots),
+    ):
+        ircd = IRCd(config)
+        await ircd.start()
+        ircd.config.port = ircd._server.sockets[0].getsockname()[1]
+
+        # Connect a tag-capable client and join #system before stopping.
+        reader, writer = await asyncio.open_connection("127.0.0.1", ircd.config.port)
+        from tests.conftest import IRCTestClient
+
+        client = IRCTestClient(reader, writer)
+        await client.send("CAP REQ :message-tags")
+        await client.recv_until("CAP")
+        await client.send("NICK sleepserv-alice")
+        await client.send("USER alice 0 * :alice")
+        await client.recv_all(timeout=0.5)
+        await client.send("JOIN #system")
+        await client.recv_until("366")
+        await asyncio.sleep(0.05)
+        await client.recv_all(timeout=0.2)  # flush any queued join-event PRIVMSG
+
+        # Start receiving concurrently before calling stop() so we capture the
+        # server.sleep PRIVMSG that must arrive at the top of stop() before any
+        # socket teardown. server.wait_closed() will not return until after we
+        # close the client connection.
+        recv_task = asyncio.create_task(client.recv_until("server.sleep"))
+
+        # Allow the event loop to schedule the recv task before we block in stop().
+        await asyncio.sleep(0)
+
+        # Trigger stop() — server.sleep must surface BEFORE sockets close.
+        # We close the client immediately after stop() emits the event so that
+        # server.wait_closed() can finish.
+        stop_task = asyncio.create_task(ircd.stop())
+
+        # Collect the sleep message — recv_until times out after 2s or on
+        # ConnectionError so this will not hang even if the event is never sent.
+        line = await recv_task
+
+        # Now close the client so server.wait_closed() can proceed.
+        try:
+            await client.close()
+        except Exception:
+            pass
+
+        # Wait for stop() to fully complete.
+        await stop_task
+
+        assert (
+            "event=server.sleep" in line
+        ), f"Expected server.sleep PRIVMSG before socket closed; got: {line!r}"
+        assert "sleepserv is shutting down" in line
