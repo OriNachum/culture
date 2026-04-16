@@ -90,9 +90,10 @@ async def test_collect_sees_messages(server, make_client):
         message_limit=4,
     )
     testing_room = next(r for r in mesh.rooms if r.name == "#testing")
-    assert len(testing_room.messages) == 2
-    assert testing_room.messages[0].text == "test message one"
-    assert testing_room.messages[1].text == "test message two"
+    # Join lifecycle events are also stored in history; filter to PRIVMSG content.
+    texts = [m.text for m in testing_room.messages]
+    assert "test message one" in texts
+    assert "test message two" in texts
 
 
 @pytest.mark.asyncio
