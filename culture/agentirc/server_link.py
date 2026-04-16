@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import json
 import logging
 from typing import TYPE_CHECKING
@@ -740,8 +741,12 @@ class ServerLink:
 
         try:
             data = json.loads(base64.b64decode(b64))
-        except (json.JSONDecodeError, ValueError) as exc:
+        except (ValueError, binascii.Error) as exc:
             logger.warning("SEVENT bad payload from %s: %s", self.peer_name, exc)
+            return
+
+        if not isinstance(data, dict):
+            logger.warning("SEVENT non-dict payload from %s", self.peer_name)
             return
 
         # Re-attach _origin so _surface_event_privmsg uses the correct federated prefix
@@ -827,10 +832,8 @@ class ServerLink:
         # If no typed relay exists, fall back to generic SEVENT.
         # v1 assumes all peers support SEVENT; cap negotiation is deferred — see plan task 12.
         type_str = event.type.value if hasattr(event.type, "value") else str(event.type)
-        payload = {k: v for k, v in event.data.items() if not k.startswith("_")}
-        encoded = base64.b64encode(
-            json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
-        ).decode("ascii")
+        payload = self.server._build_event_payload(event)
+        encoded = self.server._encode_event_data(payload, type_str)
         target = event.channel or "*"
         # Egress trust check: channel-scoped events respect should_relay; global events always relay
         if event.channel is not None and not self.should_relay(event.channel):

@@ -10,7 +10,7 @@ from culture.agentirc.skill import Event, EventType
 @pytest.mark.asyncio
 async def test_event_federates_to_peer(linked_servers, make_client_b):
     """An event on server A is surfaced on server B's #system."""
-    alpha, beta = linked_servers
+    alpha, _ = linked_servers
 
     b = await make_client_b("beta-bob", "bob")
     await b.send("CAP REQ :message-tags")
@@ -36,7 +36,7 @@ async def test_event_federates_to_peer(linked_servers, make_client_b):
 @pytest.mark.asyncio
 async def test_federated_event_does_not_loop(linked_servers, make_client_a, make_client_b):
     """A federated event surfaces once on each side — no loop."""
-    alpha, beta = linked_servers
+    alpha, _ = linked_servers
 
     a = await make_client_a("alpha-alice", "alice")
     await a.send("CAP REQ :message-tags")
@@ -89,7 +89,7 @@ async def test_server_link_in_event_log(linked_servers):
 @pytest.mark.asyncio
 async def test_server_unlink_on_disconnect(linked_servers):
     """server.unlink is emitted when a peer link drops."""
-    alpha, beta = linked_servers
+    alpha, _ = linked_servers
 
     # Grab the link object and close it from alpha's side
     link = alpha.links["beta"]
