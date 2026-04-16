@@ -3,8 +3,9 @@
 Event type names follow the dotted-lowercase convention enforced by
 `EVENT_TYPE_RE` in `culture.constants`. Render templates map a type to a
 function that produces the human-readable PRIVMSG body for humans and
-vanilla IRC clients. The structured payload always rides on the `@event`
-and `@event-data` tags — the rendered body is presentation only.
+vanilla IRC clients. The structured payload is attached as IRCv3 message
+tags by the server's emit path (see `culture/agentirc/ircd.py`); this
+module is presentation-only.
 """
 
 from __future__ import annotations
@@ -15,8 +16,6 @@ from typing import Any, Callable
 from culture.constants import EVENT_TYPE_RE
 
 logger = logging.getLogger(__name__)
-
-INVALID_EVENT_TYPE = "invalid.event-type"
 
 RenderFn = Callable[[dict[str, Any], str | None], str]
 

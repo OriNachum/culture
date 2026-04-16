@@ -3,7 +3,6 @@
 import pytest
 
 from culture.agentirc.events import (
-    INVALID_EVENT_TYPE,
     render_event,
     validate_event_type,
 )
