@@ -9,7 +9,7 @@ from culture.agentirc.remote_client import RemoteClient
 from culture.agentirc.skill import Event, EventType
 from culture.aio import maybe_await
 from culture.bots.virtual_client import VirtualClient
-from culture.constants import RESERVED_NICK_RE
+from culture.constants import SYSTEM_USER_PREFIX
 from culture.protocol.message import Message
 
 if TYPE_CHECKING:
@@ -265,7 +265,7 @@ class ServerLink:
         realname = msg.params[3]
 
         # Reject reserved nick prefix
-        if RESERVED_NICK_RE.match(nick):
+        if nick.startswith(SYSTEM_USER_PREFIX):
             logger.warning("Rejecting reserved nick %r from peer %s", nick, self.peer_name)
             return
 

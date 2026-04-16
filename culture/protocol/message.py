@@ -16,10 +16,11 @@ def _unescape_tag_value(value: str) -> str:
     while i < len(value):
         if value[i] == "\\" and i + 1 < len(value):
             two = value[i : i + 2]
-            if two in _TAG_UNESCAPE:
-                out.append(_TAG_UNESCAPE[two])
-                i += 2
-                continue
+            # Per IRCv3 spec, unknown escapes drop the backslash (yield only
+            # the second char). Known escapes map to their defined character.
+            out.append(_TAG_UNESCAPE.get(two, value[i + 1]))
+            i += 2
+            continue
         out.append(value[i])
         i += 1
     return "".join(out)
@@ -47,23 +48,36 @@ class Message:
     params: list[str] = field(default_factory=list)
     tags: dict[str, str] = field(default_factory=dict)
 
+    @staticmethod
+    def _parse_tag_block(line: str) -> "tuple[dict[str, str], str]":
+        """Extract leading @tag block from a wire line.
+
+        Returns (tags_dict, remaining_line). If no tag block, returns ({}, line).
+        """
+        if not line.startswith("@"):
+            return {}, line
+        if " " not in line:
+            return {}, ""  # malformed — no command after tags
+        tag_blob, rest = line[1:].split(" ", 1)
+        tags: dict[str, str] = {}
+        for piece in tag_blob.split(";"):
+            if not piece:
+                continue
+            if "=" in piece:
+                key, value = piece.split("=", 1)
+                tags[key] = _unescape_tag_value(value)
+            else:
+                tags[piece] = ""
+        return tags, rest
+
     @classmethod
     def parse(cls, line: str) -> "Message":
         line = line.rstrip("\r\n")
-        tags: dict[str, str] = {}
+        tags, line = cls._parse_tag_block(line)
 
-        if line.startswith("@"):
-            if " " not in line:
-                return cls(tags={}, prefix=None, command="", params=[])
-            tag_blob, line = line[1:].split(" ", 1)
-            for piece in tag_blob.split(";"):
-                if not piece:
-                    continue
-                if "=" in piece:
-                    key, value = piece.split("=", 1)
-                    tags[key] = _unescape_tag_value(value)
-                else:
-                    tags[piece] = ""
+        if not line:
+            # malformed @-only input
+            return cls(tags=tags, prefix=None, command="", params=[])
 
         prefix = None
         if line.startswith(":"):

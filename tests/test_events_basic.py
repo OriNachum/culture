@@ -10,6 +10,68 @@ from culture.agentirc.skill import Event, EventType
 
 
 @pytest.mark.asyncio
+async def test_event_nick_from_event_field_populates_payload(server, make_client):
+    """Emitters that set Event.nick (not data['nick']) still produce correct
+    payload + body — payload.setdefault('nick', event.nick) covers them."""
+    c = await make_client("testserv-alice", "alice")
+    await c.send("CAP REQ :message-tags")
+    await c.recv_until("CAP")
+    await c.send("JOIN #general")
+    await c.recv_until("366")
+    await asyncio.sleep(0.05)
+    await c.recv_all(timeout=0.2)
+
+    ev = Event(
+        type=EventType.JOIN,
+        channel="#general",
+        nick="testserv-bob",
+        data={},  # NO data['nick'] — only Event.nick
+    )
+    await server.emit_event(ev)
+
+    line = await c.recv_until("event=user.join")
+    assert "testserv-bob joined" in line  # template rendered actor
+    # Decode payload and confirm 'nick' was populated from Event.nick
+    at_idx = line.find("@")
+    space_idx = line.find(" ", at_idx)
+    tag_blob = line[at_idx + 1 : space_idx]
+    data_piece = [p for p in tag_blob.split(";") if p.startswith("event-data=")][0]
+    decoded = json.loads(base64.b64decode(data_piece.split("=", 1)[1]))
+    assert decoded["nick"] == "testserv-bob"
+
+
+@pytest.mark.asyncio
+async def test_unserializable_payload_does_not_crash(server, make_client):
+    """An event with a non-JSON-serializable value surfaces with empty payload
+    rather than crashing emit_event."""
+    c = await make_client("testserv-alice", "alice")
+    await c.send("CAP REQ :message-tags")
+    await c.recv_until("CAP")
+    await c.send("JOIN #system")
+    await c.recv_until("366")
+    await asyncio.sleep(0.05)
+    await c.recv_all(timeout=0.2)
+
+    class Unserializable:
+        pass
+
+    ev = Event(
+        type=EventType.AGENT_CONNECT,
+        channel=None,
+        nick="system-testserv",
+        data={"nick": "testserv-bob", "obj": Unserializable()},
+    )
+    # Must not raise.
+    await server.emit_event(ev)
+
+    line = await c.recv_until("event=agent.connect")
+    # Body still rendered correctly (Unserializable wasn't needed for render)
+    assert "testserv-bob connected" in line
+    # Payload is empty (encoded {}) — confirm no Unserializable repr leaked
+    assert "Unserializable" not in line
+
+
+@pytest.mark.asyncio
 async def test_event_surfaces_as_tagged_privmsg(server, make_client):
     """A tag-capable client in #system receives a tagged PRIVMSG on emit_event."""
     c = await make_client("testserv-alice", "alice")

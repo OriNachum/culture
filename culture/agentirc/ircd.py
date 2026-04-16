@@ -57,11 +57,11 @@ class IRCd:
         logger.info("Registering default skills...")
         await self._register_default_skills()
 
-        logger.info("Bootstrapping system identity...")
-        await self._bootstrap_system_identity()
-
         logger.info("Restoring persistent rooms...")
         self._restore_persistent_rooms()
+
+        logger.info("Bootstrapping system identity...")
+        self._bootstrap_system_identity()
 
         # Initialize bot manager and webhook HTTP listener
         from culture.bots.bot_manager import BotManager
@@ -104,18 +104,29 @@ class IRCd:
 
         logger.info("Server ready")
 
-    async def _bootstrap_system_identity(self) -> None:
-        """Create the system pseudo-user and #system channel at server start."""
+    def _bootstrap_system_identity(self) -> None:
+        """Create the system pseudo-user and #system channel at server start.
+
+        Called AFTER _restore_persistent_rooms so any legacy persisted room
+        named #system can't overwrite the bootstrap. We force-correct the
+        channel's invariants (persistent=True, archived=False) in case it
+        was loaded from disk.
+        """
         from culture.constants import SYSTEM_CHANNEL, SYSTEM_USER_PREFIX, SYSTEM_USER_REALNAME
 
         system_nick = f"{SYSTEM_USER_PREFIX}{self.config.name}"
         system_client = VirtualClient(system_nick, "system", self)
         system_client.realname = SYSTEM_USER_REALNAME
+        system_client.host = self.config.name
+        system_client.tags = []
         self.clients[system_nick] = system_client
         self.system_client = system_client
 
         channel = self.get_or_create_channel(SYSTEM_CHANNEL)
         channel.persistent = True
+        # Force-correct in case #system was persisted as a regular room
+        if hasattr(channel, "archived"):
+            channel.archived = False
         channel.add(system_client)
         system_client.channels.add(channel)
         # Defensive: VirtualClients are excluded from auto-op by Channel._local_members(),
@@ -213,9 +224,23 @@ class IRCd:
 
         # Encode payload (exclude internal _-prefixed keys).
         payload = {k: v for k, v in event.data.items() if not k.startswith("_")}
-        encoded = base64.b64encode(
-            json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
-        ).decode("ascii")
+        # Canonical actor + channel from Event fields, so emitters that only set
+        # Event.nick (not data['nick']) still produce correct templates and payloads.
+        if event.nick:
+            payload.setdefault("nick", event.nick)
+        if event.channel:
+            payload.setdefault("channel", event.channel)
+        try:
+            encoded = base64.b64encode(
+                json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+            ).decode("ascii")
+        except (TypeError, ValueError) as e:
+            logger.warning(
+                "Event %s payload not JSON-serializable, surfacing with empty payload: %s",
+                type_wire,
+                e,
+            )
+            encoded = base64.b64encode(b"{}").decode("ascii")
 
         body = event.data.get("_render") or render_event(type_wire, payload, event.channel)
 
@@ -230,7 +255,7 @@ class IRCd:
         if channel is None:
             return
 
-        for member in list(channel.members):
+        for member in channel.members:
             # Skip VirtualClients (system user, bots) — they receive events via
             # subscription, not by re-broadcasting the PRIVMSG.
             if isinstance(member, VirtualClient):

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from culture.agentirc.channel import Channel
 from culture.agentirc.skill import Event, EventType
 from culture.aio import maybe_await
-from culture.constants import RESERVED_NICK_RE
+from culture.constants import SYSTEM_USER_PREFIX
 from culture.protocol import replies
 from culture.protocol.message import Message
 
@@ -169,7 +169,7 @@ class Client:
         nick = msg.params[0]
 
         # Reject reserved system-* nick prefix
-        if RESERVED_NICK_RE.match(nick):
+        if nick.startswith(SYSTEM_USER_PREFIX):
             await self.send_numeric(
                 replies.ERR_ERRONEUSNICKNAME,
                 nick,

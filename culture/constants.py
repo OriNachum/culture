@@ -16,8 +16,5 @@ EVENT_TAG_DATA = "event-data"
 # Peer link capability (server-to-server)
 PEER_CAPABILITY_EVENTS = "events/1"
 
-# Reserved-nick pattern: any nick starting with `system-` is server-owned.
-RESERVED_NICK_RE = re.compile(r"^system-[a-zA-Z0-9][a-zA-Z0-9\-]*$")
-
 # Event-type name regex (dotted lowercase, ≥2 segments)
 EVENT_TYPE_RE = re.compile(r"^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*)+$")

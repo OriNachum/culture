@@ -42,20 +42,17 @@ class IRCTestClient:
         return lines
 
     async def recv_until(self, marker: str, timeout: float = 2.0) -> str:
-        """Receive lines until one contains *marker*; return all lines joined."""
+        """Read lines until one contains marker (or timeout)."""
         collected = []
-        deadline = asyncio.get_event_loop().time() + timeout
-        while True:
-            remaining = deadline - asyncio.get_event_loop().time()
-            if remaining <= 0:
-                break
-            try:
-                line = await self.recv(timeout=remaining)
-                collected.append(line)
-                if marker in line:
-                    break
-            except (asyncio.TimeoutError, ConnectionError):
-                break
+        try:
+            async with asyncio.timeout(timeout):
+                while True:
+                    line = await self.recv(timeout=timeout)
+                    collected.append(line)
+                    if marker in line:
+                        return "\r\n".join(collected)
+        except (asyncio.TimeoutError, TimeoutError, ConnectionError):
+            pass
         return "\r\n".join(collected)
 
     async def close(self) -> None:

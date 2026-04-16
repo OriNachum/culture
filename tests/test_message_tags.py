@@ -47,7 +47,7 @@ def test_format_with_tags():
     assert " :system-spark!system@spark PRIVMSG #system :ori joined\r\n" in line
 
 
-def test_format_without_tags_omits_prefix():
+def test_format_without_tags_includes_prefix():
     m = Message(tags={}, prefix="x", command="PING", params=["y"])
     assert m.format() == ":x PING y\r\n"
 
@@ -67,3 +67,9 @@ def test_round_trip():
     original = "@event=user.join;event-data=e30= :n!u@h PRIVMSG #c :hello world\r\n"
     m = Message.parse(original)
     assert m.format() == original
+
+
+def test_parse_unknown_escape_drops_backslash():
+    """Per IRCv3 spec, unknown escapes (e.g. \\x) yield just the second char."""
+    m = Message.parse(r"@k=foo\xbar PING :z" + "\r\n")
+    assert m.tags == {"k": "fooxbar"}
