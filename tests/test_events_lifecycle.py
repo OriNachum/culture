@@ -256,3 +256,45 @@ async def test_mode_before_registration_does_not_emit_events(server, make_client
     ), f"agent.connect fired pre-registration (security bug). Got: {tail_joined!r}"
 
     await bob_raw.close()
+
+
+@pytest.mark.asyncio
+async def test_room_create_emitted_on_roomcreate(server, make_client):
+    """ROOMCREATE emits a distinct `room.create` event, separate from room.meta.
+
+    room.create signals the room's birth (a lifecycle moment); the follow-up
+    room.meta carries the initial metadata snapshot. Downstream consumers
+    (bots, history, federation peers) see both and can pick whichever semantic
+    fits their logic.
+    """
+    creator = await make_client("testserv-creator", "creator")
+    await creator.send("CAP REQ :message-tags")
+    await creator.recv_until("ACK")
+
+    # Create a managed room. The channel-scoped room.create surfaces on the
+    # new channel itself — creator is auto-joined, so they receive it.
+    await creator.send("ROOMCREATE #research :purpose=AI research;tags=ai;persistent=true")
+
+    line = await creator.recv_until("event=room.create")
+    assert "event=room.create" in line, f"Expected room.create tag, got: {line!r}"
+    assert "testserv-creator created room #research" in line
+
+
+@pytest.mark.asyncio
+async def test_room_create_precedes_room_meta(server, make_client):
+    """room.create must precede room.meta on the wire so downstream consumers
+    can distinguish creation from subsequent metadata updates."""
+    creator = await make_client("testserv-creator", "creator")
+    await creator.send("CAP REQ :message-tags")
+    await creator.recv_until("ACK")
+
+    await creator.send("ROOMCREATE #ordering :purpose=Test;persistent=true")
+    collected = await creator.recv_until("event=room.meta")
+    create_idx = collected.find("event=room.create")
+    meta_idx = collected.find("event=room.meta")
+    assert create_idx != -1, f"room.create not found in: {collected!r}"
+    assert meta_idx != -1, f"room.meta not found in: {collected!r}"
+    assert create_idx < meta_idx, (
+        f"room.create must precede room.meta (create@{create_idx}, meta@{meta_idx}) "
+        f"in: {collected!r}"
+    )
