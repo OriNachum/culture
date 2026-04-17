@@ -40,3 +40,9 @@ repos:
     entry: uv run pylint --rcfile=.pylintrc --fail-under=9.0
     language: system
     types: [python]
+
+- repo: https://github.com/DavidAnson/markdownlint-cli2
+  rev: v0.22.0
+  hooks:
+  - id: markdownlint-cli2
+    files: \.md$

@@ -4,14 +4,20 @@ All notable changes to this project will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [7.1.0] - 2026-04-17
-
+## [7.1.1] - 2026-04-17
 
 ### Changed
 
-- Refactored _handle_channel_mode in culture/agentirc/client.py: extracted _apply_mode_char and _broadcast_mode_change helpers to drop cognitive complexity from 21 to ≤15 (SonarCloud S3776)
-- Background task GC safety in ircd.py _notify_local_quit: asyncio.ensure_future replaced with a tracked asyncio.create_task using the existing self._background_tasks set + add_done_callback(discard) pattern
+- Added markdownlint-cli2 to the pre-commit hook set via the upstream DavidAnson/markdownlint-cli2 repo. Contributors running `pre-commit install` now get markdown linting on staged .md files automatically — no system install required (pre-commit provisions its own Node environment).
+- Tuned .markdownlint-cli2.yaml to fit the repo's existing conventions: MD024 uses `siblings_only` so Keep-a-Changelog headings pass; MD025/MD033/MD041 disabled for Jekyll pages that derive their H1 from front matter and use inline HTML; added `_site_*/**` and `docs/superpowers/**` to ignores.
+- Merged duplicated `### Changed` blocks inside CHANGELOG [0.21.0] that the new lint rule surfaced.
 
+## [7.1.0] - 2026-04-17
+
+### Changed
+
+- Refactored `_handle_channel_mode` in `culture/agentirc/client.py`: extracted `_apply_mode_char` and `_broadcast_mode_change` helpers to drop cognitive complexity from 21 to ≤15 (SonarCloud S3776)
+- Background task GC safety in `ircd.py` `_notify_local_quit`: `asyncio.ensure_future` replaced with a tracked `asyncio.create_task` using the existing `self._background_tasks` set + `add_done_callback(discard)` pattern
 
 ### Fixed
 
@@ -21,13 +27,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [7.0.4] - 2026-04-17
 
-
 ### Fixed
 
 - Reduce cognitive complexity and fix code quality issues across CLI modules (SonarCloud S3776, S1192, S5886, S108)
 
 ## [7.0.3] - 2026-04-17
-
 
 ### Fixed
 
@@ -41,7 +45,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [7.0.2] - 2026-04-17
 
-
 ### Fixed
 
 - Cognitive complexity in observer.py (CC 22→~13)
@@ -49,7 +52,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Cognitive complexity in server_link.py (CC 33→~14)
 
 ## [7.0.1] - 2026-04-17
-
 
 ### Fixed
 
@@ -101,13 +103,11 @@ new subsystem, new bot trigger type).
 
 ## [6.2.3] - 2026-04-15
 
-
 ### Changed
 
 - docs: post-#231 retrospective — CLAUDE.md guidance for pre-branch checklist, format-before-commit, pre-push code review, SonarCloud pre-ready; new doc-test-alignment subagent; /pr-review skill step for SonarCloud query
 
 ## [6.2.2] - 2026-04-14
-
 
 ### Fixed
 
@@ -115,11 +115,9 @@ new subsystem, new bot trigger type).
 
 ## [6.2.1] - 2026-04-13
 
-
 ### Added
 
 - Copy-paste guidance in help screen (Shift+drag bypasses TUI mouse capture in modern terminals)
-
 
 ### Fixed
 
@@ -131,13 +129,11 @@ new subsystem, new bot trigger type).
 
 ## [6.2.0] - 2026-04-12
 
-
 ### Added
 
 - Agent status indicators in console sidebar (#218) — shows working/idle/paused/circuit-open for each agent
 - Auto-read channel history on switch (#219) — loads last 20 messages when switching channels via Tab, sidebar click, or /join
 - Help menu — /help command and Ctrl+H keybinding showing all commands and keybindings
-
 
 ### Fixed
 
@@ -145,18 +141,15 @@ new subsystem, new bot trigger type).
 
 ## [6.1.1] - 2026-04-11
 
-
 ### Changed
 
 - Remove Python API sections from all backend SKILL.md files — agents should use culture channel CLI exclusively
-
 
 ### Fixed
 
 - IRC skill teaches agents to use internal module path instead of culture CLI (#215)
 
 ## [6.1.0] - 2026-04-10
-
 
 ### Added
 
@@ -168,7 +161,6 @@ new subsystem, new bot trigger type).
 - Cross-site linking via _data/sites.yml
 - docs-check CI workflow validating both site builds
 
-
 ### Changed
 
 - Consolidated 23 per-backend harness docs into 4 single-page references
@@ -178,13 +170,11 @@ new subsystem, new bot trigger type).
 
 ## [6.0.2] - 2026-04-10
 
-
 ### Changed
 
 - AgentIRC local docs with Jekyll pipeline copy step
 
 ## [6.0.1] - 2026-04-10
-
 
 ### Fixed
 
@@ -194,14 +184,12 @@ new subsystem, new bot trigger type).
 
 ## [6.0.0] - 2026-04-10
 
-
 ### Changed
 
 - **BREAKING:** Renamed internal Python package `culture.server` to `culture.agentirc`. All imports must update from `culture.server.*` to `culture.agentirc.*`. CLI command `culture server` and config path `~/.culture/server.yaml` are unchanged.
 - **AgentIRC** is now the official name for the server engine in documentation.
 
 ## [5.0.4] - 2026-04-10
-
 
 ### Fixed
 
@@ -210,18 +198,15 @@ new subsystem, new bot trigger type).
 
 ## [5.0.3] - 2026-04-10
 
-
 ### Added
 
 - New channel subcommands: join, part, ask, topic, compact, clear
-
 
 ### Changed
 
 - Channel CLI routes through agent daemon IPC when CULTURE_NICK is set
 - All SKILL.md files and learn prompt use culture channel CLI instead of python3 -m
 - Mesh update readiness probe verifies PID-based server identity
-
 
 ### Fixed
 
@@ -230,7 +215,6 @@ new subsystem, new bot trigger type).
 
 ## [5.0.2] - 2026-04-09
 
-
 ### Fixed
 
 - Handle missing credential tool (secret-tool/security/powershell) gracefully instead of crashing the server
@@ -238,13 +222,11 @@ new subsystem, new bot trigger type).
 
 ## [5.0.1] - 2026-04-09
 
-
 ### Added
 
 - Topic subcommand for IRC skill (#192)
 - @mention validation warnings for unknown nicks (#196)
 - GitHub issues skill for Claude Code
-
 
 ### Fixed
 
@@ -256,11 +238,9 @@ new subsystem, new bot trigger type).
 
 ## [5.0.0] - 2026-04-09
 
-
 ### Added
 
 - Mesh overview shows stopped/registered agents from server.yaml manifest (#178)
-
 
 ### Changed
 
@@ -269,13 +249,11 @@ new subsystem, new bot trigger type).
 - All doc references updated from agents.yaml to server.yaml (#188)
 - Documented --mesh-config, --webhook-port, --data-dir server start flags (#189)
 
-
 ### Fixed
 
 - Mesh overview now includes agents that are registered but not running
 
 ## [4.5.2] - 2026-04-09
-
 
 ### Fixed
 
@@ -288,13 +266,11 @@ new subsystem, new bot trigger type).
 
 ## [4.5.1] - 2026-04-09
 
-
 ### Fixed
 
 - Fix mesh overview crash after agent config migration (str has no attribute items)
 
 ## [4.5.0] - 2026-04-09
-
 
 ### Added
 
@@ -305,15 +281,12 @@ new subsystem, new bot trigger type).
 - Unified culture/config.py module with AgentConfig, ServerConfig, auto-detection
 - culture.yaml definitions for harness template and backend agents (#harness channel)
 
-
 ### Changed
 
 - Agent config split: per-agent settings in culture.yaml, server settings in server.yaml
 - CLI agent commands now support both server.yaml and legacy agents.yaml formats
 
-
 ## [4.4.3] - 2026-04-08
-
 
 ### Changed
 
@@ -322,7 +295,6 @@ new subsystem, new bot trigger type).
 - Remove original source image (IMG_3161.png)
 
 ## [4.4.2] - 2026-04-08
-
 
 ### Fixed
 
@@ -336,7 +308,6 @@ new subsystem, new bot trigger type).
 
 ## [4.4.1] - 2026-04-07
 
-
 ### Fixed
 
 - Config save operations no longer strip backend-specific fields like acp_command (#150)
@@ -349,12 +320,10 @@ new subsystem, new bot trigger type).
 
 ## [4.4.0] - 2026-04-07
 
-
 ### Added
 
 - SQLite-backed persistent channel history (survives server restarts)
 - --data-dir CLI flag for server start (default: ~/.culture/data)
-
 
 ### Fixed
 
@@ -362,7 +331,6 @@ new subsystem, new bot trigger type).
 - data_dir never wired to ServerConfig, silently disabling room/thread persistence
 
 ## [4.3.7] - 2026-04-07
-
 
 ### Fixed
 
@@ -375,11 +343,9 @@ new subsystem, new bot trigger type).
 
 ## [4.3.6] - 2026-04-07
 
-
 ### Changed
 
 - CLI module docstring updated with current subcommand sets (#147)
-
 
 ### Fixed
 
@@ -400,13 +366,11 @@ new subsystem, new bot trigger type).
 
 ## [4.3.5] - 2026-04-07
 
-
 ### Changed
 
 - Reduce cognitive complexity in 30+ functions across backend clients, server code, CLI submodules, and standalone files to meet SonarCloud threshold (≤15)
 
 ## [4.3.4] - 2026-04-07
-
 
 ### Changed
 
@@ -415,13 +379,11 @@ new subsystem, new bot trigger type).
 
 ## [4.3.3] - 2026-04-07
 
-
 ### Changed
 
 - Reduced cognitive complexity in 40 functions across 25 files to meet SonarCloud threshold (≤15)
 
 ## [4.3.2] - 2026-04-07
-
 
 ### Changed
 
@@ -429,19 +391,16 @@ new subsystem, new bot trigger type).
 
 ## [4.3.1] - 2026-04-07
 
-
 ### Fixed
 
 - Remove unnecessary list() wrapping on already-iterable values (SonarCloud S7504/S7494)
 
 ## [4.3.0] - 2026-04-07
 
-
 ### Added
 
 - agent delete command to remove agents from config entirely
 - agent create now overwrites archived agents, enabling harness/model migration
-
 
 ### Fixed
 
@@ -449,19 +408,16 @@ new subsystem, new bot trigger type).
 
 ## [4.2.1] - 2026-04-07
 
-
 ### Changed
 
 - Update dispatch patterns to use declarative maybe_await() utility for handling both sync and async handlers
 - Remove unnecessary async keyword from ~40 handler functions that never use await
-
 
 ### Fixed
 
 - SonarCloud S7503: async functions that never await (issue #83)
 
 ## [4.2.0] - 2026-04-07
-
 
 ### Added
 
@@ -473,20 +429,17 @@ new subsystem, new bot trigger type).
 
 ## [4.1.3] - 2026-04-06
 
-
 ### Fixed
 
 - mesh update now discovers and restarts all running servers instead of only the one in mesh.yaml
 
 ## [4.1.2] - 2026-04-06
 
-
 ### Fixed
 
 - Clean up _mention_targets deque on prompt failure to prevent misrouted responses
 
 ## [4.1.1] - 2026-04-06
-
 
 ### Fixed
 
@@ -496,7 +449,6 @@ new subsystem, new bot trigger type).
 
 ## [4.1.0] - 2026-04-06
 
-
 ### Added
 
 - Channel polling: agents periodically check channels for unread messages (configurable via poll_interval, default 5 minutes)
@@ -504,12 +456,10 @@ new subsystem, new bot trigger type).
 
 ## [4.0.0] - 2026-04-06
 
-
 ### Added
 
 - culture agent message and culture agent read for DM operations
 - culture channel message and culture channel who for channel operations
-
 
 ### Changed
 
@@ -519,20 +469,17 @@ new subsystem, new bot trigger type).
 
 ## [3.1.2] - 2026-04-06
 
-
 ### Fixed
 
 - culture update used wrong package name (culture-cli) for uv tool upgrade
 
 ## [3.1.1] - 2026-04-06
 
-
 ### Fixed
 
 - culture update and setup auto-generate mesh.yaml from agents.yaml when mesh.yaml is missing
 
 ## [3.1.0] - 2026-04-06
-
 
 ### Added
 
@@ -542,7 +489,6 @@ new subsystem, new bot trigger type).
 
 ## [3.0.2] - 2026-04-06
 
-
 ### Fixed
 
 - Server startup readiness — culture server start now waits for port to accept connections before returning
@@ -550,13 +496,11 @@ new subsystem, new bot trigger type).
 
 ## [3.0.1] - 2026-04-06
 
-
 ### Fixed
 
 - Fix empty error message when running `culture overview` against a starting or unreachable server
 
 ## [3.0.0] - 2026-04-06
-
 
 ### Added
 
@@ -570,13 +514,11 @@ new subsystem, new bot trigger type).
 
 ## [2.0.1] - 2026-04-05
 
-
 ### Added
 
 - what-is-culture.md — project philosophy page
 - culture-cli.md — conceptual CLI guide
 - Architecture and Operations index pages for docs navigation
-
 
 ### Changed
 
@@ -586,24 +528,19 @@ new subsystem, new bot trigger type).
 
 ## [2.0.0] - 2026-04-05
 
-
 ### Added
 
-
 ### Changed
-
 
 ### Fixed
 
 ## [1.1.0] - 2026-04-05
-
 
 ### Added
 
 - culture create command (replaces init for agent creation)
 - culture join command (create + start in one step)
 - Promote phase documented as upcoming feature
-
 
 ### Changed
 
@@ -616,7 +553,6 @@ new subsystem, new bot trigger type).
 
 ## [1.0.7] - 2026-04-05
 
-
 ### Fixed
 
 - Validate PID ownership via /proc/<pid>/cmdline before os.kill() to prevent signaling unrelated processes after PID reuse (SonarCloud S4828)
@@ -624,29 +560,26 @@ new subsystem, new bot trigger type).
 
 ## [1.0.6] - 2026-04-05
 
-
 ### Added
 
 - Project-local run-tests skill for portable pytest execution
 
 ## [1.0.5] - 2026-04-05
 
-
 ### Changed
 
-- Extract helper methods from socket_server _handle_client (all backends)
-- Convert irc_transport _handle to dispatch table (all backends)
-- Extract _auto_approve and _flush_accumulated_text in codex/acp agent_runner
-- Extract _handle_session_update and _extract_response_text in acp/copilot agent_runner
-- Decompose _handle_roommeta into query/update methods in rooms.py
-- Extract _merge_room_metadata in server_link.py
-- Extract _attempt_single_reconnect in ircd.py
-- Extract _create_agent_config and _try_ipc_shutdown/_try_pid_shutdown in cli.py
+- Extract helper methods from `socket_server._handle_client` (all backends)
+- Convert `irc_transport._handle` to dispatch table (all backends)
+- Extract `_auto_approve` and `_flush_accumulated_text` in codex/acp `agent_runner`
+- Extract `_handle_session_update` and `_extract_response_text` in acp/copilot `agent_runner`
+- Decompose `_handle_roommeta` into query/update methods in `rooms.py`
+- Extract `_merge_room_metadata` in `server_link.py`
+- Extract `_attempt_single_reconnect` in `ircd.py`
+- Extract `_create_agent_config`, `_try_ipc_shutdown`, and `_try_pid_shutdown` in `cli.py`
 - Update packages/agent-harness templates to match backend features
 - Add socket_server and irc_transport to sonar CPD exclusions
 
 ## [1.0.4] - 2026-04-05
-
 
 ### Changed
 
@@ -654,13 +587,11 @@ new subsystem, new bot trigger type).
 
 ## [1.0.3] - 2026-04-05
 
-
 ### Changed
 
 - Parallelize test suite with pytest-xdist for ~15x speedup (10min → 40s)
 
 ## [1.0.2] - 2026-04-05
-
 
 ### Fixed
 
@@ -669,23 +600,17 @@ new subsystem, new bot trigger type).
 
 ## [1.0.1] - 2026-04-05
 
-
 ### Fixed
 
 - Remove agentirc legacy alias from production PyPI publish pipeline
 
 ## [1.0.0] - 2026-04-05
 
-
 ### Changed
 
 - **BREAKING:** Renamed package from agentirc-cli to culture. CLI command is now culture. Config directory is now ~/.culture/. Environment variable AGENTIRC_NICK is now CULTURE_NICK. agentirc-cli and agentirc remain as PyPI aliases.
 
 ## [0.21.0] - 2026-04-04
-
-### Changed
-
-- **BREAKING:** Renamed package from `agentirc-cli` to `culture`. `agentirc-cli` and `agentirc` remain as PyPI aliases. CLI command is now `culture`. Config directory is now `~/.culture/`. Environment variable `AGENTIRC_NICK` is now `CULTURE_NICK`.
 
 ### Added
 
@@ -699,6 +624,7 @@ new subsystem, new bot trigger type).
 
 ### Changed
 
+- **BREAKING:** Renamed package from `agentirc-cli` to `culture`. `agentirc-cli` and `agentirc` remain as PyPI aliases. CLI command is now `culture`. Config directory is now `~/.culture/`. Environment variable `AGENTIRC_NICK` is now `CULTURE_NICK`.
 - Server now starts a companion HTTP listener for bot webhooks
 - Overview collector and renderer include bot information
 - Channel._local_members() excludes VirtualClient from auto-operator promotion
