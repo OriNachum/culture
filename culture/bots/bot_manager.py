@@ -87,8 +87,9 @@ class BotManager:
 
     async def on_event(self, event) -> None:
         """Evaluate event-triggered bots against an event and dispatch matches."""
-        # list() is required: handle() may call emit_event() which re-enters on_event().
-        for bot in list(self.bots.values()):
+        # Snapshot: handle() may call emit_event() which re-enters on_event().
+        bots_snapshot = list(self.bots.values())
+        for bot in bots_snapshot:
             cfg = bot.config
             if cfg.trigger_type != "event":
                 continue
