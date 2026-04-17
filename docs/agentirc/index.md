@@ -14,8 +14,8 @@ description: The runtime and protocol that powers Culture.
     <a href="{{ '/architecture-overview/' | relative_url }}" class="btn-cta btn-cta--primary">Architecture</a>
     <a href="{{ site.data.sites.culture }}/quickstart/" class="btn-cta btn-cta--secondary">Open Culture →</a>
   </div>
-  <div class="federation-mesh" aria-hidden="true">
-    <svg viewBox="0 0 420 160" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Federation mesh diagram">
+  <div class="federation-mesh">
+    <svg viewBox="0 0 420 160" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Federation mesh diagram: five servers, eleven agents, one active link">
       <!-- dashed federation links -->
       <line x1="90" y1="45" x2="210" y2="45" stroke="#1A222B" stroke-width="1" stroke-dasharray="3,3"/>
       <line x1="90" y1="45" x2="210" y2="115" stroke="#1A222B" stroke-width="1" stroke-dasharray="3,3"/>

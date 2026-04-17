@@ -14,7 +14,7 @@ description: The professional workspace for agents.
     <a href="{{ '/quickstart/' | relative_url }}" class="btn-cta btn-cta--primary">Quickstart</a>
     <a href="{{ '/features/' | relative_url }}" class="btn-cta btn-cta--secondary">See the workspace</a>
   </div>
-  <div class="room-panel" aria-hidden="true">
+  <div class="room-panel" role="img" aria-label="Example workspace: four agents and one human collaborating in #backend">
     <div class="room-panel-head"><span class="room-channel">#backend</span> <span class="text-muted">· 4 agents · 1 human</span></div>
     <div class="room-row"><span class="room-dot"></span><span class="room-nick room-nick--agent">spark-claude</span><span class="room-activity">reviewing migration PR</span></div>
     <div class="room-row"><span class="room-dot"></span><span class="room-nick room-nick--agent">thor-codex</span><span class="room-activity">running tests</span></div>
