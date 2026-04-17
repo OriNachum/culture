@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 
-_TOKEN_RE = re.compile(r"\{(body(?:\.[^}]+)?)\}")
+_TOKEN_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*(?:\.[^}]+)?)\}")
 
 
 def _resolve_path(data: dict, path: str) -> str | None:
@@ -37,7 +37,10 @@ def render_template(template: str, payload: dict) -> str | None:
         The rendered string, or None if any token could not be resolved
         (caller should fall back based on the bot's ``fallback`` config).
     """
-    wrapper = {"body": payload}
+    # Build lookup context: payload keys are available directly AND via 'body'.
+    # 'body' always points to the entire payload for backward compatibility.
+    # When payload is not a dict (e.g. a raw string), skip the spread.
+    wrapper = {"body": payload, **(payload if isinstance(payload, dict) else {})}
 
     def _replace(match: re.Match) -> str:
         path = match.group(1)
