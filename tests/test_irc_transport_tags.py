@@ -26,12 +26,12 @@ def test_message_parse_no_tags():
 
 
 @pytest.mark.asyncio
-async def test_transport_cap_req_sent_before_nick(server, make_client):
-    """Transport sends CAP REQ :message-tags before NICK/USER so that the
-    server ACKs the capability and thereafter sends tagged lines.
+async def test_transport_negotiates_message_tags(server, make_client):
+    """Transport negotiates message-tags capability during connection.
 
-    We verify this indirectly: after a transport connects and joins, an
-    emitted event PRIVMSG must arrive with an @tag prefix.
+    After a real IRCTransport connects, the server-side client object
+    should have 'message-tags' in its caps set, proving the CAP handshake
+    completed successfully.
     """
     from culture.agentirc.skill import Event, EventType
     from culture.clients.claude.irc_transport import IRCTransport
@@ -85,6 +85,7 @@ async def test_transport_receives_tagged_events(server, make_client):
     # Connect a tag-capable client via the raw test helper
     agent = await make_client("testserv-tagrcv", "tagrcv")
     await agent.send("CAP REQ :message-tags")
+    await agent.send("CAP END")
     await agent.recv_all(timeout=0.5)
     await agent.send("JOIN #test-tags")
     await agent.recv_all(timeout=0.5)
